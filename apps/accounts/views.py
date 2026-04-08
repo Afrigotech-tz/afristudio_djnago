@@ -6,8 +6,6 @@ Equivalent to Laravel's AuthController + ProfileController.
 import random
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.core.mail import send_mail
-from django.conf import settings
 from rest_framework import serializers as drf_serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -22,6 +20,7 @@ from drf_spectacular.utils import (
 )
 
 from apps.activity_logs.utils import log_activity
+from apps.notifications.service import notify
 from .models import Profile
 from .serializers import (
     RegisterSerializer,
@@ -62,22 +61,6 @@ _ProfileUpdateResponseSchema = inline_serializer(
 )
 
 
-# ────────────────────────────────────────────────────────
-# Helper — send verification / reset code notifications
-# ────────────────────────────────────────────────────────
-def _send_notification(user, subject: str, message: str):
-    """Send email if user has one; otherwise just log (SMS stub)."""
-    if user.email:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=True,
-        )
-    elif user.phone:
-        # SMS stub — integrate Twilio / Africa's Talking here
-        print(f"[SMS] To: {user.phone} | {message}")
 
 
 # ────────────────────────────────────────────────────────
@@ -137,8 +120,8 @@ class RegisterView(APIView):
         )
 
         channel = 'email' if user.email else 'phone'
-        _send_notification(
-            user,
+        notify(
+            user=user,
             subject='Verify your Afristudio Account',
             message=f'Hi {user.name}, your verification code is: {code}',
         )
@@ -341,6 +324,15 @@ class LogoutView(APIView):
                 token.blacklist()
             except TokenError:
                 pass
+
+        log_activity(
+            user=request.user,
+            description='User logged out of the system',
+            log_name='auth',
+            event='logout',
+            properties={'ip': request.META.get('REMOTE_ADDR', '')},
+        )
+
         return Response({'message': 'Logged out successfully.'})
 
 
@@ -408,8 +400,11 @@ class ForgotPasswordView(APIView):
 
         log_activity(user=user, description='Requested a password reset OTP', log_name='auth', event='forgot_password')
 
-        _send_notification(user, subject='Password Reset Code',
-                           message=f'Hi {user.name}, your reset code is: {code}')
+        notify(
+            user=user,
+            subject='Password Reset Code',
+            message=f'Hi {user.name}, your reset code is: {code}',
+        )
 
         return Response({'message': 'Reset code sent to your registered contact.'})
 

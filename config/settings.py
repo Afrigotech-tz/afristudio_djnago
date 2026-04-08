@@ -40,6 +40,7 @@ LOCAL_APPS = [
     'apps.artworks',
     'apps.currencies',
     'apps.activity_logs',
+    'apps.notifications',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -208,3 +209,19 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@afristudio.com')
+
+# ──────────────────────────────────────────────
+# SMS
+# ──────────────────────────────────────────────
+# Options: 'africas_talking' | 'twilio' | 'console'
+SMS_PROVIDER = config('SMS_PROVIDER', default='console')
+
+# Africa's Talking (recommended for Tanzania/Africa)
+SMS_AT_USERNAME = config('SMS_AT_USERNAME', default='sandbox')
+SMS_AT_API_KEY = config('SMS_AT_API_KEY', default='')
+SMS_SENDER_ID = config('SMS_SENDER_ID', default='')  # Optional short-code / sender name
+
+# Twilio (alternative)
+SMS_TWILIO_ACCOUNT_SID = config('SMS_TWILIO_ACCOUNT_SID', default='')
+SMS_TWILIO_AUTH_TOKEN = config('SMS_TWILIO_AUTH_TOKEN', default='')
+SMS_TWILIO_FROM = config('SMS_TWILIO_FROM', default='')
