@@ -124,6 +124,8 @@ class RegisterView(APIView):
             user=user,
             subject='Verify your Afristudio Account',
             message=f'Hi {user.name}, your verification code is: {code}',
+            template='emails/verify_account.html',
+            context={'name': user.name, 'code': code},
         )
 
         return Response(
@@ -404,6 +406,8 @@ class ForgotPasswordView(APIView):
             user=user,
             subject='Password Reset Code',
             message=f'Hi {user.name}, your reset code is: {code}',
+            template='emails/forgot_password.html',
+            context={'name': user.name, 'code': code},
         )
 
         return Response({'message': 'Reset code sent to your registered contact.'})
