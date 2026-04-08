@@ -1,0 +1,1755 @@
+openapi: 3.0.3
+info:
+  title: AfriStudio API
+  version: 1.0.0
+  description: |-
+    REST API for AfriStudio - an African digital art auction platform.
+
+    **Authentication:** Use the `/api/auth/login` endpoint to obtain a Bearer token, then click **Authorize** and enter `Bearer <your_token>`.
+  contact:
+    name: AfriStudio Team
+    email: admin@afristudio.com
+  license:
+    name: Proprietary
+paths:
+  /api/activity-logs/:
+    get:
+      operationId: activity_logs_list
+      description: Returns a paginated, reverse-chronological list of all system activity
+        events. Supports filtering by keyword search, log channel, event type, and
+        causer email. **Requires authentication.**
+      summary: List activity logs
+      parameters:
+      - in: query
+        name: causer_email
+        schema:
+          type: string
+        description: Filter by partial email of the user who triggered the event.
+      - in: query
+        name: event
+        schema:
+          type: string
+        description: Filter by event type (e.g. `login`, `created`, `updated`, `deleted`,
+          `verified`).
+      - in: query
+        name: log_name
+        schema:
+          type: string
+        description: Filter by log channel name (e.g. `auth`, `artworks`, `categories`,
+          `currencies`).
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 'Page number (default: 1).'
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: 'Number of results per page (default: 20).'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Full-text search across `description` and `log_name`.
+      tags:
+      - Activity Logs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedActivityLogList'
+          description: Paginated activity logs.
+        '401':
+          description: Authentication required.
+  /api/artworks/:
+    get:
+      operationId: artworks_list
+      description: 'Returns a paginated list of artworks. Pricing is converted to
+        the requested currency via the `currency` query parameter (default: USD).'
+      summary: List artworks
+      parameters:
+      - in: query
+        name: category_uuid
+        schema:
+          type: string
+          format: uuid
+        description: Filter by category UUID.
+      - in: query
+        name: currency
+        schema:
+          type: string
+        description: 'Currency code for price conversion (e.g. `TZS`, `EUR`). Default:
+          `USD`.'
+        examples:
+          USD(default):
+            value: USD
+            summary: USD (default)
+          TZS:
+            value: TZS
+      - in: query
+        name: is_sold
+        schema:
+          type: boolean
+        description: Filter by sold status (`true` or `false`).
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Artworks
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedArtworkList'
+          description: ''
+    post:
+      operationId: artworks_create
+      description: Creates a new artwork listing. Send `multipart/form-data` when
+        including an image. **Requires authentication.**
+      summary: Upload a new artwork
+      tags:
+      - Artworks
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StoreArtworkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StoreArtworkRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreArtworkRequest'
+            examples:
+              CreateArtwork:
+                value:
+                  category_uuid: a1b2c3d4-0000-0000-0000-000000000001
+                  name: Serengeti Sunrise
+                  dimensions: 60x90
+                  base_price: '250.00'
+                  is_sold: false
+                summary: Create artwork
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artwork'
+          description: Artwork created.
+        '400':
+          description: Validation error (invalid category UUID, missing fields, etc.).
+        '401':
+          description: Authentication required.
+  /api/artworks/{uuid}/:
+    get:
+      operationId: artworks_retrieve
+      description: Returns full details of a single artwork by its UUID. Pricing converts
+        to the `currency` query param.
+      summary: Retrieve an artwork
+      parameters:
+      - in: query
+        name: currency
+        schema:
+          type: string
+        description: 'Currency code for price conversion (default: `USD`).'
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Artworks
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artwork'
+          description: Artwork details.
+        '404':
+          description: Artwork not found.
+    put:
+      operationId: artworks_update
+      description: Replaces artwork fields. Send `multipart/form-data` to update the
+        image. **Requires authentication.**
+      summary: Update an artwork
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Artworks
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateArtworkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateArtworkRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateArtworkRequest'
+            examples:
+              UpdateArtwork:
+                value:
+                  name: Serengeti Dusk
+                  base_price: '300.00'
+                  is_sold: true
+                summary: Update artwork
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artwork'
+          description: Artwork updated.
+        '401':
+          description: Authentication required.
+        '404':
+          description: Artwork not found.
+    patch:
+      operationId: artworks_partial_update
+      description: |-
+        GET    /api/artworks/<uuid>/   → show (public)
+        PUT    /api/artworks/<uuid>/   → update (auth required)
+        DELETE /api/artworks/<uuid>/   → destroy (auth required)
+      summary: Partially update an artwork
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Artworks
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateArtworkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateArtworkRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateArtworkRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artwork'
+          description: Artwork updated.
+        '401':
+          description: Authentication required.
+    delete:
+      operationId: artworks_destroy
+      description: |-
+        GET    /api/artworks/<uuid>/   → show (public)
+        PUT    /api/artworks/<uuid>/   → update (auth required)
+        DELETE /api/artworks/<uuid>/   → destroy (auth required)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - artworks
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/auth/forgot-password:
+    post:
+      operationId: auth_forgot_password_create
+      description: Sends a 6-digit reset code to the registered email or phone. Always
+        returns **200** to prevent user enumeration.
+      summary: Request a password-reset OTP
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            examples:
+              ByEmail:
+                value:
+                  login: jane@example.com
+                summary: By email
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Success:
+                  value:
+                    message: Reset code sent to your registered contact.
+          description: OTP dispatched (or silently ignored if account not found).
+  /api/auth/login:
+    post:
+      operationId: auth_login_create
+      description: Authenticates a user by email **or** phone number and returns a
+        JWT access token (short-lived) and a refresh token (long-lived).
+      summary: Login and obtain JWT tokens
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              LoginByEmail:
+                value:
+                  login: jane@example.com
+                  password: secret123
+                summary: Login by email
+              LoginByPhone:
+                value:
+                  login: '+255712345678'
+                  password: secret123
+                summary: Login by phone
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                Success:
+                  value:
+                    access_token: eyJ0eXAiOiJKV1Q...
+                    refresh_token: eyJ0eXAiOiJKV1Q...
+                    token_type: Bearer
+                    user:
+                      uuid: a1b2c3d4-...
+                      name: Jane Doe
+                      email: jane@example.com
+                      phone: null
+                      verified_at: '2026-01-01T00:00:00Z'
+                      roles:
+                      - Bidder
+                      permissions: []
+          description: Login successful — tokens returned.
+        '401':
+          description: Invalid credentials.
+        '403':
+          description: Account not yet verified.
+  /api/auth/register:
+    post:
+      operationId: auth_register_create
+      description: Creates a new user account and sends a 6-digit OTP to the provided
+        email or phone for verification.
+      summary: Register a new user
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              EmailRegistration:
+                value:
+                  name: Jane Doe
+                  email: jane@example.com
+                  password: secret123
+                summary: Email registration
+              PhoneRegistration:
+                value:
+                  name: John Doe
+                  phone: '+255712345678'
+                  password: secret123
+                summary: Phone registration
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Success:
+                  value:
+                    message: Account created. Please check your email for the verification
+                      code.
+          description: Account created — OTP sent to email or phone.
+        '422':
+          description: Validation error (duplicate email/phone or missing contact).
+  /api/auth/reset-password:
+    post:
+      operationId: auth_reset_password_create
+      description: Validates the OTP and sets a new password for the account.
+      summary: Reset password using OTP
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            examples:
+              ResetPassword:
+                value:
+                  login: jane@example.com
+                  code: '482910'
+                  password: newSecret123
+                  password_confirmation: newSecret123
+                summary: Reset password
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Success:
+                  value:
+                    message: Password reset successful. Please login with your new
+                      password.
+          description: Password reset successfully.
+        '422':
+          description: Invalid/expired code or passwords do not match.
+  /api/auth/token/refresh:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/verify-account:
+    post:
+      operationId: auth_verify_account_create
+      description: Validates the 6-digit OTP sent during registration. On success
+        the account is activated and the **Bidder** role is assigned.
+      summary: Verify account with OTP
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAccountRequest'
+            examples:
+              VerifyByEmail:
+                value:
+                  identifier: jane@example.com
+                  code: '482910'
+                summary: Verify by email
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyAccountRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+          description: Account verified successfully.
+        '422':
+          description: Invalid or expired OTP code.
+  /api/categories/:
+    get:
+      operationId: categories_list
+      description: Returns all artwork categories ordered alphabetically, each annotated
+        with an `artworks_count`.
+      summary: List all categories
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Categories
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCategoryList'
+          description: ''
+    post:
+      operationId: categories_create
+      description: Creates a category and auto-generates a URL slug from the name.
+        **Requires authentication.**
+      summary: Create a new category
+      tags:
+      - Categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+            examples:
+              CreateCategory:
+                value:
+                  name: Oil Paintings
+                summary: Create category
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: Category created.
+        '400':
+          description: Name already exists or validation error.
+        '401':
+          description: Authentication required.
+  /api/categories/{uuid}/:
+    get:
+      operationId: categories_retrieve
+      description: Returns a single category by its UUID.
+      summary: Retrieve a category
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Categories
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: Category details.
+        '404':
+          description: Category not found.
+    put:
+      operationId: categories_update
+      description: Replaces the category name. **Requires authentication.**
+      summary: Update a category
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+            examples:
+              Update:
+                value:
+                  name: Watercolours
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StoreCategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: Category updated.
+        '400':
+          description: Validation error.
+        '401':
+          description: Authentication required.
+        '404':
+          description: Category not found.
+    patch:
+      operationId: categories_partial_update
+      description: |-
+        GET    /api/categories/<uuid>/  → show (public)
+        PUT    /api/categories/<uuid>/  → update (auth required)
+        DELETE /api/categories/<uuid>/  → destroy (auth required)
+      summary: Partially update a category
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCategoryRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: Category updated.
+        '401':
+          description: Authentication required.
+    delete:
+      operationId: categories_destroy
+      description: |-
+        GET    /api/categories/<uuid>/  → show (public)
+        PUT    /api/categories/<uuid>/  → update (auth required)
+        DELETE /api/categories/<uuid>/  → destroy (auth required)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/currencies/:
+    get:
+      operationId: currencies_list
+      description: Returns all configured currencies with their exchange rates relative
+        to USD. **Requires authentication.**
+      summary: List all currencies
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Currencies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCurrencyList'
+          description: List of currencies.
+        '401':
+          description: Authentication required.
+    post:
+      operationId: currencies_create
+      description: Adds a new currency with its exchange rate. Currency codes are
+        stored in uppercase. **Requires authentication.**
+      summary: Create a new currency
+      tags:
+      - Currencies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+            examples:
+              CreateCurrency:
+                value:
+                  code: ZAR
+                  symbol: R
+                  exchange_rate: '18.95000000'
+                summary: Create currency
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+          description: Currency created.
+        '400':
+          description: Duplicate code or validation error.
+        '401':
+          description: Authentication required.
+  /api/currencies/{uuid}/:
+    get:
+      operationId: currencies_retrieve
+      description: Returns a single currency by its UUID. **Requires authentication.**
+      summary: Retrieve a currency
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Currencies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+          description: Currency details.
+        '401':
+          description: Authentication required.
+        '404':
+          description: Currency not found.
+    put:
+      operationId: currencies_update
+      description: Replaces all currency fields. **Requires authentication.**
+      summary: Update a currency
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Currencies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+            examples:
+              UpdateCurrency:
+                value:
+                  code: TZS
+                  symbol: TSh
+                  exchange_rate: '2600.00000000'
+                summary: Update currency
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StoreCurrencyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+          description: Currency updated.
+        '400':
+          description: Validation error.
+        '401':
+          description: Authentication required.
+        '404':
+          description: Currency not found.
+    patch:
+      operationId: currencies_partial_update
+      description: |-
+        GET    /api/currencies/<uuid>/   → show (auth required)
+        PUT    /api/currencies/<uuid>/   → update (auth required)
+        DELETE /api/currencies/<uuid>/   → destroy (auth required)
+      summary: Partially update a currency
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Currencies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCurrencyRequest'
+            examples:
+              UpdateRateOnly:
+                value:
+                  exchange_rate: '2620.50000000'
+                summary: Update rate only
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCurrencyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStoreCurrencyRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+          description: Currency updated.
+        '401':
+          description: Authentication required.
+    delete:
+      operationId: currencies_destroy
+      description: |-
+        GET    /api/currencies/<uuid>/   → show (auth required)
+        PUT    /api/currencies/<uuid>/   → update (auth required)
+        DELETE /api/currencies/<uuid>/   → destroy (auth required)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - currencies
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/logout:
+    post:
+      operationId: logout_create
+      description: Blacklists the provided refresh token so it can no longer be used
+        to obtain new access tokens. Equivalent to deleting a Sanctum token.
+      summary: Logout — blacklist the refresh token
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+            examples:
+              Logout:
+                value:
+                  refresh_token: eyJ0eXAiOiJKV1Q...
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Success:
+                  value:
+                    message: Logged out successfully.
+          description: Logged out successfully.
+  /api/me:
+    get:
+      operationId: me_retrieve
+      description: Returns the full profile of the currently authenticated user including
+        roles and permissions.
+      summary: Get the authenticated user
+      tags:
+      - Auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: Authenticated user data.
+        '401':
+          description: Not authenticated.
+  /api/profile/:
+    get:
+      operationId: profile_retrieve
+      description: Returns the profile details (bio, avatar, address, city) for the
+        logged-in user.
+      summary: Get authenticated user's profile
+      tags:
+      - Profile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: Profile data.
+        '404':
+          description: Profile not found.
+    post:
+      operationId: profile_create
+      description: Creates the profile if it does not exist, otherwise updates it.
+        Send `multipart/form-data` when uploading an avatar image.
+      summary: Create or update profile
+      tags:
+      - Profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            examples:
+              UpdateProfile(JSON):
+                value:
+                  bio: Digital artist from Dar es Salaam.
+                  city: Dar es Salaam
+                  address: Mikocheni B
+                summary: Update profile (JSON)
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileUpdateResponse'
+              examples:
+                Success:
+                  value:
+                    message: Profile updated successfully.
+                    data:
+                      uuid: a1b2c3d4-...
+                      bio: Digital artist from Dar es Salaam.
+                      avatar_url: http://localhost:8000/media/avatars/me.jpg
+                      address: Mikocheni B
+                      city: Dar es Salaam
+                      created_at: '2026-01-01T00:00:00Z'
+                      updated_at: '2026-04-08T12:00:00Z'
+          description: Profile saved successfully.
+  /api/profile/avatar:
+    delete:
+      operationId: profile_avatar_destroy
+      description: Deletes the current avatar image from storage and clears the avatar
+        field.
+      summary: Remove profile avatar
+      tags:
+      - Profile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Removed:
+                  value:
+                    message: Avatar removed.
+          description: Avatar removed.
+        '404':
+          description: No avatar to remove.
+components:
+  schemas:
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        log_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        description:
+          type: string
+        event:
+          type: string
+          nullable: true
+          maxLength: 100
+        subject_type:
+          type: integer
+          nullable: true
+        subject_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        subject:
+          type: string
+          readOnly: true
+        causer:
+          type: integer
+          nullable: true
+        causer_name:
+          type: string
+          readOnly: true
+        properties:
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - causer_name
+      - created_at
+      - description
+      - id
+      - subject
+      - updated_at
+    Artwork:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        dimensions:
+          type: string
+          maxLength: 100
+        category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        pricing:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+        is_sold:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - created_at
+      - dimensions
+      - image_url
+      - name
+      - pricing
+      - uuid
+    Category:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        artworks_count:
+          type: integer
+          readOnly: true
+      required:
+      - artworks_count
+      - name
+      - slug
+      - uuid
+    Currency:
+      type: object
+      description: Equivalent to CurrencyResource.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        code:
+          type: string
+          maxLength: 3
+        symbol:
+          type: string
+          maxLength: 10
+        rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,8})?$
+          readOnly: true
+      required:
+      - code
+      - rate
+      - symbol
+      - uuid
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 1
+      required:
+      - login
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - login
+      - password
+    LogoutRequestRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+      required:
+      - refresh_token
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    PaginatedActivityLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityLog'
+    PaginatedArtworkList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artwork'
+    PaginatedCategoryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    PaginatedCurrencyList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Currency'
+    PatchedStoreCategoryRequest:
+      type: object
+      description: Equivalent to StoreCategoryRequest + UpdateCategoryRequest.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    PatchedStoreCurrencyRequest:
+      type: object
+      description: Equivalent to StoreCurrencyRequest + UpdateCurrencyRequest.
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 3
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+        exchange_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,8})?$
+    PatchedUpdateArtworkRequest:
+      type: object
+      description: Equivalent to UpdateArtworkRequest.
+      properties:
+        category_uuid:
+          type: string
+          format: uuid
+          writeOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        dimensions:
+          type: string
+          minLength: 1
+          maxLength: 100
+        base_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        image:
+          type: string
+          format: binary
+          nullable: true
+        is_sold:
+          type: boolean
+    Profile:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        bio:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          readOnly: true
+        address:
+          type: string
+          nullable: true
+          maxLength: 255
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - avatar_url
+      - created_at
+      - updated_at
+      - uuid
+    ProfileUpdateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Profile'
+      required:
+      - data
+      - message
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - name
+      - password
+    ResetPasswordRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        password_confirmation:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - code
+      - login
+      - password
+      - password_confirmation
+    StoreArtworkRequest:
+      type: object
+      description: |-
+        Equivalent to StoreArtworkRequest.
+        Accepts category UUID (not PK) to match UUID-based routing.
+      properties:
+        category_uuid:
+          type: string
+          format: uuid
+          writeOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        dimensions:
+          type: string
+          minLength: 1
+          maxLength: 100
+        base_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        image:
+          type: string
+          format: binary
+          nullable: true
+        is_sold:
+          type: boolean
+      required:
+      - base_price
+      - category_uuid
+      - dimensions
+      - name
+    StoreCategoryRequest:
+      type: object
+      description: Equivalent to StoreCategoryRequest + UpdateCategoryRequest.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
+    StoreCurrencyRequest:
+      type: object
+      description: Equivalent to StoreCurrencyRequest + UpdateCurrencyRequest.
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 3
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+        exchange_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,8})?$
+      required:
+      - code
+      - exchange_rate
+      - symbol
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          default: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+      - access_token
+      - refresh_token
+      - user
+    UpdateArtworkRequest:
+      type: object
+      description: Equivalent to UpdateArtworkRequest.
+      properties:
+        category_uuid:
+          type: string
+          format: uuid
+          writeOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        dimensions:
+          type: string
+          minLength: 1
+          maxLength: 100
+        base_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        image:
+          type: string
+          format: binary
+          nullable: true
+        is_sold:
+          type: boolean
+    UpdateProfileRequest:
+      type: object
+      properties:
+        bio:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+          maxLength: 255
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+    User:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        permissions:
+          type: array
+          items:
+            type: string
+          readOnly: true
+      required:
+      - name
+      - permissions
+      - roles
+      - uuid
+    VerifyAccountRequest:
+      type: object
+      properties:
+        identifier:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+      required:
+      - code
+      - identifier
+    VerifyResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+      - message
+      - user
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Auth
+  description: Register, verify, login, logout and token refresh
+- name: Profile
+  description: View and update the authenticated user's profile
+- name: Artworks
+  description: CRUD for artwork listings
+- name: Categories
+  description: Artwork category management
+- name: Currencies
+  description: Exchange-rate management
+- name: Activity Logs
+  description: Read-only audit trail of system events
