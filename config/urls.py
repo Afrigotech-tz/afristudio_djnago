@@ -36,6 +36,18 @@ urlpatterns = [
 
     # Activity logs  (auth required, read-only)
     path('api/activity-logs/', include('apps.activity_logs.urls')),
+
+    # Wallet
+    path('api/wallet/', include('apps.wallet.urls')),
+
+    # Auctions & live bidding
+    path('api/auctions/', include('apps.auctions.urls')),
+
+    # Cart
+    path('api/cart/', include('apps.cart.urls')),
+
+    # Orders & delivery
+    path('api/orders/', include('apps.orders.urls')),
 ]
 
 # Serve media files in development

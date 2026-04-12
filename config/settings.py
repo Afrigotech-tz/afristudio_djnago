@@ -33,6 +33,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'django_filters',
     'drf_spectacular',
+    'channels',
 ]
 
 LOCAL_APPS = [
@@ -41,6 +42,10 @@ LOCAL_APPS = [
     'apps.currencies',
     'apps.activity_logs',
     'apps.notifications',
+    'apps.wallet',
+    'apps.auctions',
+    'apps.cart',
+    'apps.orders',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -75,6 +80,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+# ──────────────────────────────────────────────
+# Django Channels — WebSocket layer
+# Use InMemoryChannelLayer for development.
+# For production switch to Redis:
+#   pip install channels-redis
+#   CHANNEL_LAYERS = {'default': {'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#                                 'CONFIG': {'hosts': [('127.0.0.1', 6379)]}}}
+# ──────────────────────────────────────────────
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 # ──────────────────────────────────────────────
 # Database — PostgreSQL
@@ -129,7 +149,7 @@ REST_FRAMEWORK = {
 }
 
 # ──────────────────────────────────────────────
-# SimpleJWT Settings  (replaces Laravel Sanctum)
+# SimpleJWT Settings  
 # ──────────────────────────────────────────────
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
@@ -197,6 +217,9 @@ SPECTACULAR_SETTINGS = {
     ],
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': '/api/',
+    'SWAGGER_UI_SETTINGS': {
+        'defaultModelsExpandDepth': -1,  # -1 hides the Schemas section entirely
+    },
 }
 
 # ──────────────────────────────────────────────
