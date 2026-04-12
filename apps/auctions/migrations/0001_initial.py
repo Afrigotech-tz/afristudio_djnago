@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('uuid', models.UUIDField(default=uuid.uuid4, editable=False, unique=True, db_index=True)),
                 ('start_price', models.DecimalField(decimal_places=2, max_digits=15)),
                 ('reserve_price', models.DecimalField(decimal_places=2, max_digits=15, null=True, blank=True)),
-                ('current_price', models.DecimalField(decimal_places=2, max_digits=15)),
+                ('current_price', models.DecimalField(decimal_places=2, max_digits=15, null=True, blank=True)),
                 ('bid_increment', models.DecimalField(decimal_places=2, default=1.0, max_digits=15)),
                 ('currency', models.CharField(default='USD', max_length=3)),
                 ('start_time', models.DateTimeField()),

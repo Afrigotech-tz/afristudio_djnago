@@ -19,6 +19,23 @@ class AuctionAdmin(admin.ModelAdmin):
     inlines = [BidInline]
     actions = ['start_auctions', 'end_auctions']
 
+    def save_model(self, request, obj, form, change):
+        # Auto-set current_price = start_price when creating a new auction
+        if not change and not obj.current_price:
+            obj.current_price = obj.start_price
+
+        # Detect admin changing status to 'ended' directly via the change form
+        if change and 'status' in form.changed_data and obj.status == Auction.STATUS_ENDED:
+            # Fetch a fresh copy to check the previous status
+            previous = Auction.objects.filter(pk=obj.pk).values('status').first()
+            if previous and previous['status'] == Auction.STATUS_LIVE:
+                from .models import close_auction
+                # close_auction handles save() internally — don't call super()
+                close_auction(obj)
+                return
+
+        super().save_model(request, obj, form, change)
+
     def start_auctions(self, request, queryset):
         from django.utils import timezone
         updated = queryset.filter(status=Auction.STATUS_PENDING).update(

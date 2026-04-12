@@ -37,7 +37,7 @@ class Auction(models.Model):
     start_price = models.DecimalField(max_digits=15, decimal_places=2)
     reserve_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True,
                                         help_text='Minimum price to complete the sale. Optional.')
-    current_price = models.DecimalField(max_digits=15, decimal_places=2)
+    current_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     bid_increment = models.DecimalField(max_digits=15, decimal_places=2, default=1.00,
                                         help_text='Minimum amount each new bid must exceed the current price by.')
     currency = models.CharField(max_length=3, default='USD')
@@ -67,7 +67,8 @@ class Auction(models.Model):
 
     @property
     def minimum_next_bid(self):
-        return self.current_price + self.bid_increment
+        price = self.current_price or self.start_price
+        return price + self.bid_increment
 
     def check_and_auto_close(self):
         """Close the auction if end_time has passed. Returns True if closed."""
@@ -101,56 +102,84 @@ class Bid(models.Model):
 
 def close_auction(auction: Auction):
     """
-    Finalise a live auction:
-    - Determine the winner (highest bid).
+    Finalise a live or pending auction:
+    - Pick the highest bid (is_winning=True) as the winner.
     - Mark artwork as sold.
     - Add artwork to winner's cart.
     - Send notification to winner.
     - Log the event.
+
+    Everything up to and including auction.save() runs inside a DB
+    transaction so the state is always consistent.
+    Notification and activity-log calls are outside the transaction so
+    an email/SMS failure can never prevent the winner from being saved.
     """
+    from django.db import transaction
     from apps.cart.models import Cart, CartItem
     from apps.notifications.service import notify
     from apps.activity_logs.utils import log_activity
 
-    winning_bid = auction.bids.filter(is_winning=True).first()
-    auction.status = Auction.STATUS_ENDED
+    # Pick winner: highest bid marked is_winning=True, fall back to
+    # highest bid overall in case is_winning flag was not set properly.
+    winning_bid = (
+        auction.bids.filter(is_winning=True).order_by('-amount').first()
+        or auction.bids.order_by('-amount').first()
+    )
 
+    with transaction.atomic():
+        auction.status = Auction.STATUS_ENDED
+
+        if winning_bid:
+            auction.winner = winning_bid.bidder
+            auction.current_price = winning_bid.amount
+
+            # Mark artwork as sold
+            auction.artwork.is_sold = True
+            auction.artwork.save(update_fields=['is_sold'])
+
+            # Add artwork to winner's cart
+            cart, _ = Cart.objects.get_or_create(user=winning_bid.bidder)
+            CartItem.objects.update_or_create(
+                cart=cart,
+                artwork=auction.artwork,
+                defaults={
+                    'source': CartItem.SOURCE_AUCTION_WIN,
+                    'auction': auction,
+                    'price': winning_bid.amount,
+                    'currency': auction.currency,
+                },
+            )
+
+            # Ensure winning bid flag is consistent
+            auction.bids.exclude(pk=winning_bid.pk).update(is_winning=False)
+            if not winning_bid.is_winning:
+                winning_bid.is_winning = True
+                winning_bid.save(update_fields=['is_winning'])
+
+        auction.save(update_fields=['status', 'winner', 'current_price', 'updated_at'])
+
+    # ── Post-transaction: notifications & logs (failures here never roll back DB) ──
     if winning_bid:
-        auction.winner = winning_bid.bidder
-        auction.artwork.is_sold = True
-        auction.artwork.save(update_fields=['is_sold'])
-
-        # Add to winner's cart
-        cart, _ = Cart.objects.get_or_create(user=winning_bid.bidder)
-        CartItem.objects.get_or_create(
-            cart=cart,
-            artwork=auction.artwork,
-            defaults={
-                'source': CartItem.SOURCE_AUCTION_WIN,
-                'auction': auction,
-                'price': winning_bid.amount,
-                'currency': auction.currency,
-            },
-        )
-
-        # Notify winner
-        notify(
-            user=winning_bid.bidder,
-            subject='Congratulations! You won the auction',
-            message=(
-                f'Hi {winning_bid.bidder.name}, you won the auction for '
-                f'"{auction.artwork.name}" with a bid of '
-                f'{winning_bid.amount} {auction.currency}. '
-                f'The artwork has been added to your cart.'
-            ),
-            template='emails/auction_won.html',
-            context={
-                'name': winning_bid.bidder.name,
-                'artwork_name': auction.artwork.name,
-                'amount': str(winning_bid.amount),
-                'currency': auction.currency,
-            },
-        )
+        try:
+            notify(
+                user=winning_bid.bidder,
+                subject='Congratulations! You won the auction',
+                message=(
+                    f'Hi {winning_bid.bidder.name}, you won the auction for '
+                    f'"{auction.artwork.name}" with a bid of '
+                    f'{winning_bid.amount} {auction.currency}. '
+                    f'The artwork has been added to your cart.'
+                ),
+                template='emails/auction_won.html',
+                context={
+                    'name': winning_bid.bidder.name,
+                    'artwork_name': auction.artwork.name,
+                    'amount': str(winning_bid.amount),
+                    'currency': auction.currency,
+                },
+            )
+        except Exception:
+            pass  # notification failure must never break auction close
 
         log_activity(
             user=winning_bid.bidder,
@@ -159,8 +188,6 @@ def close_auction(auction: Auction):
             log_name='auctions',
             event='auction_won',
         )
-
-    auction.save(update_fields=['status', 'winner', 'updated_at'])
 
     log_activity(
         user=auction.created_by,
