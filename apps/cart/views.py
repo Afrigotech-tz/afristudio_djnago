@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import Cart, CartItem
 from .serializers import CartSerializer, AddToCartSerializer, CartItemSerializer
@@ -67,7 +67,8 @@ class CartItemAddView(APIView):
 class CartItemRemoveView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['Cart'], summary='Remove item from cart')
+    @extend_schema(tags=['Cart'], summary='Remove item from cart',
+                   responses={204: None, 403: OpenApiResponse(description='Auction-won items cannot be removed.')})
     def delete(self, request, uuid):
         cart = get_object_or_404(Cart, user=request.user)
         item = get_object_or_404(CartItem, uuid=uuid, cart=cart)

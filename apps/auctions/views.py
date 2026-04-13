@@ -105,7 +105,8 @@ class AuctionDetailView(APIView):
 class AuctionStartView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['Auctions'], summary='Start an auction (go live)')
+    @extend_schema(tags=['Auctions'], summary='Start an auction (go live)',
+                   responses={200: AuctionSerializer, 422: OpenApiResponse(description='Auction not pending.')})
     def post(self, request, uuid):
         auction = get_object_or_404(Auction, uuid=uuid)
 
@@ -134,7 +135,8 @@ class AuctionStartView(APIView):
 class AuctionEndView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['Auctions'], summary='Manually end a live auction')
+    @extend_schema(tags=['Auctions'], summary='Manually end a live auction',
+                   responses={200: AuctionSerializer, 422: OpenApiResponse(description='Auction not live.')})
     def post(self, request, uuid):
         auction = get_object_or_404(Auction, uuid=uuid)
 

@@ -1,5 +1,7 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from .models import Auction, Bid
 
 
@@ -32,9 +34,11 @@ class AuctionSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
+    @extend_schema_field(BidSerializer(many=True))
     def get_top_bids(self, obj):
         return BidSerializer(obj.bids.order_by('-amount')[:10], many=True).data
 
+    @extend_schema_field(serializers.IntegerField())
     def get_seconds_remaining(self, obj):
         if obj.status != Auction.STATUS_LIVE:
             return 0
@@ -44,9 +48,9 @@ class AuctionSerializer(serializers.ModelSerializer):
 
 class CreateAuctionSerializer(serializers.Serializer):
     artwork_uuid = serializers.UUIDField()
-    start_price = serializers.DecimalField(max_digits=15, decimal_places=2, min_value='0.01')
+    start_price = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'))
     reserve_price = serializers.DecimalField(max_digits=15, decimal_places=2, required=False, allow_null=True)
-    bid_increment = serializers.DecimalField(max_digits=15, decimal_places=2, default='1.00', min_value='0.01')
+    bid_increment = serializers.DecimalField(max_digits=15, decimal_places=2, default=Decimal('1.00'), min_value=Decimal('0.01'))
     currency = serializers.CharField(max_length=3, default='USD')
     start_time = serializers.DateTimeField()
     end_time = serializers.DateTimeField()
@@ -58,4 +62,4 @@ class CreateAuctionSerializer(serializers.Serializer):
 
 
 class PlaceBidSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=15, decimal_places=2, min_value='0.01')
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'))

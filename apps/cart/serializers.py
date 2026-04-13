@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Cart, CartItem
 
 
@@ -21,6 +22,7 @@ class CartSerializer(serializers.ModelSerializer):
         model = Cart
         fields = ['uuid', 'items', 'total', 'updated_at']
 
+    @extend_schema_field(serializers.DecimalField(max_digits=15, decimal_places=2))
     def get_total(self, obj):
         return sum(item.price for item in obj.items.all())
 

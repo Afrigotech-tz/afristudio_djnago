@@ -218,7 +218,15 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': '/api/',
     'SWAGGER_UI_SETTINGS': {
-        'defaultModelsExpandDepth': -1,  # -1 hides the Schemas section entirely
+        'defaultModelsExpandDepth': -1,
+    },
+    'ENUM_NAME_OVERRIDES': {
+        'AuctionStatusEnum':  'apps.auctions.models.Auction.STATUS_CHOICES',
+        'OrderStatusEnum':    'apps.orders.models.Order.STATUS_CHOICES',
+        'NotificationChannelEnum': 'apps.notifications.models.NotificationLog.CHANNEL_CHOICES',
+        'NotificationStatusEnum':  'apps.notifications.models.NotificationLog.STATUS_CHOICES',
+        'WalletTxTypeEnum':   'apps.wallet.models.WalletTransaction.TYPE_CHOICES',
+        'CartItemSourceEnum': 'apps.cart.models.CartItem.SOURCE_CHOICES',
     },
 }
 

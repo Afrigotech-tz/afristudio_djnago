@@ -19,6 +19,21 @@ from .models import Currency
 from .serializers import CurrencySerializer, StoreCurrencySerializer
 
 
+@extend_schema(
+    tags=['Currencies'],
+    summary='List all currencies (public)',
+    description='Returns all configured currencies with their exchange rates. **No authentication required.**',
+    responses={200: OpenApiResponse(response=CurrencySerializer(many=True), description='List of currencies.')},
+)
+class PublicCurrencyListView(generics.ListAPIView):
+    """
+    GET /api/currencies/public/  → list all currencies (no auth required)
+    """
+    queryset = Currency.objects.all()
+    serializer_class = CurrencySerializer
+    permission_classes = []
+
+
 @extend_schema_view(
     get=extend_schema(
         tags=['Currencies'],

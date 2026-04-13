@@ -17,7 +17,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['uuid', 'name', 'slug', 'artworks_count']
+        fields = ['uuid', 'name', 'slug', 'description', 'artworks_count']
         read_only_fields = ['uuid', 'slug', 'artworks_count']
 
 
@@ -25,7 +25,8 @@ class StoreCategorySerializer(serializers.ModelSerializer):
     """Equivalent to StoreCategoryRequest + UpdateCategoryRequest."""
     class Meta:
         model = Category
-        fields = ['name']
+        fields = ['name', 'description']
+        extra_kwargs = {'description': {'required': False}}
 
     def validate_name(self, value):
         qs = Category.objects.filter(name__iexact=value)
