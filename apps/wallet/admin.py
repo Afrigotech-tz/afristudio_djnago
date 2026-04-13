@@ -3,10 +3,18 @@ from .models import Wallet, WalletTransaction
 
 
 class WalletTransactionInline(admin.TabularInline):
+    """
+    Read-only view of transactions on the Wallet page.
+    To add a transaction (and update the balance), go to the
+    WalletTransaction admin page directly.
+    """
     model = WalletTransaction
     extra = 0
-    readonly_fields = ('balance_after', 'created_at')
+    readonly_fields = ('type', 'amount', 'balance_after', 'description', 'reference', 'created_at')
     can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Wallet)

@@ -103,42 +103,51 @@ class Bid(models.Model):
 def close_auction(auction: Auction):
     """
     Finalise a live or pending auction:
-    - Pick the highest bid (is_winning=True) as the winner.
-    - Mark artwork as sold.
-    - Add artwork to winner's cart.
-    - Send notification to winner.
-    - Log the event.
+    1. Pick the winning bid.
+    2. Mark artwork as sold.
+    3. Add artwork to winner's cart.
+    4. Auto-create a confirmed Order for the winner.
+    5. Send win email + order confirmation email.
+    6. Log the event.
 
-    Everything up to and including auction.save() runs inside a DB
-    transaction so the state is always consistent.
-    Notification and activity-log calls are outside the transaction so
-    an email/SMS failure can never prevent the winner from being saved.
+    DB work runs inside transaction.atomic() so state is always consistent.
+    Notifications are outside the transaction so email/SMS failure never
+    prevents the winner from being saved.
     """
     from django.db import transaction
     from apps.cart.models import Cart, CartItem
+    from apps.orders.models import Order, OrderItem
     from apps.notifications.service import notify
     from apps.activity_logs.utils import log_activity
 
-    # Pick winner: highest bid marked is_winning=True, fall back to
-    # highest bid overall in case is_winning flag was not set properly.
+    # Pick winner: is_winning=True first, fall back to highest bid overall
     winning_bid = (
         auction.bids.filter(is_winning=True).order_by('-amount').first()
         or auction.bids.order_by('-amount').first()
     )
 
+    order = None
+
     with transaction.atomic():
         auction.status = Auction.STATUS_ENDED
 
         if winning_bid:
-            auction.winner = winning_bid.bidder
+            winner = winning_bid.bidder
+            auction.winner = winner
             auction.current_price = winning_bid.amount
 
             # Mark artwork as sold
             auction.artwork.is_sold = True
             auction.artwork.save(update_fields=['is_sold'])
 
-            # Add artwork to winner's cart
-            cart, _ = Cart.objects.get_or_create(user=winning_bid.bidder)
+            # Ensure bid flags are consistent
+            auction.bids.exclude(pk=winning_bid.pk).update(is_winning=False)
+            if not winning_bid.is_winning:
+                winning_bid.is_winning = True
+                winning_bid.save(update_fields=['is_winning'])
+
+            # Add artwork to winner's cart (so they can still navigate to it)
+            cart, _ = Cart.objects.get_or_create(user=winner)
             CartItem.objects.update_or_create(
                 cart=cart,
                 artwork=auction.artwork,
@@ -150,43 +159,95 @@ def close_auction(auction: Auction):
                 },
             )
 
-            # Ensure winning bid flag is consistent
-            auction.bids.exclude(pk=winning_bid.pk).update(is_winning=False)
-            if not winning_bid.is_winning:
-                winning_bid.is_winning = True
-                winning_bid.save(update_fields=['is_winning'])
+            # Pull delivery details from user profile (if available)
+            profile = getattr(winner, 'profile', None)
+            order = Order.objects.create(
+                user=winner,
+                auction=auction,
+                status=Order.STATUS_CONFIRMED,
+                total=winning_bid.amount,
+                currency=auction.currency,
+                delivery_name=winner.name or '',
+                delivery_phone=getattr(winner, 'phone', '') or '',
+                delivery_address=getattr(profile, 'address', '') or '',
+                delivery_city=getattr(profile, 'city', '') or '',
+                delivery_country='Tanzania',
+                notes=f'Auto-created from auction win — Auction #{auction.uuid}',
+            )
+            OrderItem.objects.create(
+                order=order,
+                artwork=auction.artwork,
+                artwork_name=auction.artwork.name,
+                price=winning_bid.amount,
+                currency=auction.currency,
+                auction=auction,
+            )
 
         auction.save(update_fields=['status', 'winner', 'current_price', 'updated_at'])
 
-    # ── Post-transaction: notifications & logs (failures here never roll back DB) ──
-    if winning_bid:
+    # ── Post-transaction: notifications & logs ────────────────────────────────
+    if winning_bid and order:
+        winner = winning_bid.bidder
+
+        # 1 — Auction win notification
         try:
             notify(
-                user=winning_bid.bidder,
-                subject='Congratulations! You won the auction',
+                user=winner,
+                subject=f'Congratulations! You won the auction for "{auction.artwork.name}"',
                 message=(
-                    f'Hi {winning_bid.bidder.name}, you won the auction for '
+                    f'Hi {winner.name}, you won the auction for '
                     f'"{auction.artwork.name}" with a bid of '
                     f'{winning_bid.amount} {auction.currency}. '
-                    f'The artwork has been added to your cart.'
+                    f'Your order #{order.id} has been confirmed.'
                 ),
                 template='emails/auction_won.html',
                 context={
-                    'name': winning_bid.bidder.name,
+                    'name': winner.name,
                     'artwork_name': auction.artwork.name,
                     'amount': str(winning_bid.amount),
                     'currency': auction.currency,
+                    'order_id': order.id,
                 },
             )
         except Exception:
-            pass  # notification failure must never break auction close
+            pass
+
+        # 2 — Order confirmation notification
+        try:
+            notify(
+                user=winner,
+                subject=f'Order #{order.id} Confirmed — Afristudio',
+                message=(
+                    f'Hi {winner.name}, your order #{order.id} for '
+                    f'"{auction.artwork.name}" has been confirmed. '
+                    f'Total: {order.total} {order.currency}. '
+                    f'Please update your delivery address if not already set.'
+                ),
+                template='emails/order_placed.html',
+                context={
+                    'name': winner.name,
+                    'order_id': order.id,
+                    'total': str(order.total),
+                    'currency': order.currency,
+                    'delivery_city': order.delivery_city or 'Not set — please update',
+                },
+            )
+        except Exception:
+            pass
 
         log_activity(
-            user=winning_bid.bidder,
+            user=winner,
             subject=auction,
-            description=f'Won auction for "{auction.artwork.name}" at {winning_bid.amount} {auction.currency}',
+            description=f'Won auction for "{auction.artwork.name}" at {winning_bid.amount} {auction.currency} — Order #{order.id} created',
             log_name='auctions',
             event='auction_won',
+        )
+        log_activity(
+            user=winner,
+            subject=order,
+            description=f'Order #{order.id} auto-created from auction win',
+            log_name='orders',
+            event='order_placed',
         )
 
     log_activity(

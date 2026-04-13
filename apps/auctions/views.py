@@ -196,17 +196,50 @@ class PlaceBidView(APIView):
         if auction.winner == request.user:
             return Response({'message': 'You are already the highest bidder.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        wallet, _ = Wallet.objects.get_or_create(user=request.user)
-        if not wallet.can_afford(bid_amount):
-            return Response({'message': 'Insufficient wallet balance.'}, status=status.HTTP_402_PAYMENT_REQUIRED)
+        # Pre-flight balance check (quick, outside transaction — gives early feedback)
+        pre_wallet, _ = Wallet.objects.get_or_create(user=request.user)
+        pre_wallet.refresh_from_db()
+        if not pre_wallet.can_afford(bid_amount):
+            return Response(
+                {
+                    'message': (
+                        f'Insufficient wallet balance. '
+                        f'Your balance is {pre_wallet.balance} {pre_wallet.currency}, '
+                        f'but the bid requires {bid_amount} {auction.currency}.'
+                    )
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
 
         with transaction.atomic():
+            # Re-fetch wallet with a row-level lock to get the definitive fresh balance
+            try:
+                wallet = Wallet.objects.select_for_update().get(user=request.user)
+            except Wallet.DoesNotExist:
+                wallet = Wallet.objects.create(user=request.user)
+
+            # Re-validate balance inside the lock (prevents race conditions)
+            if not wallet.can_afford(bid_amount):
+                return Response(
+                    {
+                        'message': (
+                            f'Insufficient wallet balance. '
+                            f'Your balance is {wallet.balance} {wallet.currency}, '
+                            f'but the bid requires {bid_amount} {auction.currency}.'
+                        )
+                    },
+                    status=status.HTTP_402_PAYMENT_REQUIRED,
+                )
+
             # Refund previous highest bidder
-            prev_winning_bid = auction.bids.filter(is_winning=True).select_related('bidder__wallet').first()
+            prev_winning_bid = auction.bids.filter(is_winning=True).select_related('bidder').first()
             if prev_winning_bid:
                 prev_winning_bid.is_winning = False
                 prev_winning_bid.save(update_fields=['is_winning'])
-                prev_wallet, _ = Wallet.objects.get_or_create(user=prev_winning_bid.bidder)
+                try:
+                    prev_wallet = Wallet.objects.select_for_update().get(user=prev_winning_bid.bidder)
+                except Wallet.DoesNotExist:
+                    prev_wallet = Wallet.objects.create(user=prev_winning_bid.bidder)
                 prev_wallet.credit(
                     amount=prev_winning_bid.amount,
                     description=f'Refund — outbid on "{auction.artwork.name}"',
@@ -214,7 +247,7 @@ class PlaceBidView(APIView):
                     tx_type=WalletTransaction.TYPE_REFUND,
                 )
 
-            # Deduct from bidder's wallet
+            # Deduct from bidder's wallet (wallet is fresh & locked — no stale data)
             wallet.deduct(
                 amount=bid_amount,
                 description=f'Bid on "{auction.artwork.name}"',
