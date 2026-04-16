@@ -67,15 +67,9 @@ class CartItemAddView(APIView):
 class CartItemRemoveView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['Cart'], summary='Remove item from cart',
-                   responses={204: None, 403: OpenApiResponse(description='Auction-won items cannot be removed.')})
+    @extend_schema(tags=['Cart'], summary='Remove item from cart', responses={204: None})
     def delete(self, request, uuid):
         cart = get_object_or_404(Cart, user=request.user)
         item = get_object_or_404(CartItem, uuid=uuid, cart=cart)
-
-        # Auction-won items cannot be manually removed
-        if item.source == CartItem.SOURCE_AUCTION_WIN:
-            return Response({'message': 'Auction-won items cannot be removed from cart.'}, status=status.HTTP_403_FORBIDDEN)
-
         item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
