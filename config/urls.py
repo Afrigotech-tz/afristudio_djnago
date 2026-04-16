@@ -9,6 +9,7 @@ from drf_spectacular.views import (
 )
 
 from apps.accounts.urls.auth_urls import auth_urlpatterns, user_urlpatterns
+from apps.accounts.urls.admin_urls import admin_urlpatterns
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -48,6 +49,9 @@ urlpatterns = [
 
     # Orders & delivery
     path('api/orders/', include('apps.orders.urls')),
+
+    # Admin management (roles, permissions, all content)
+    path('api/admin/', include((admin_urlpatterns, 'admin_api'))),
 ]
 
 # Serve media files in development

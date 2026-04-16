@@ -132,7 +132,10 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # LenientJWT: silently ignores expired/invalid tokens so public
+        # endpoints (IsAuthenticatedOrReadOnly / AllowAny) keep working
+        # even when the client sends a stale token.
+        'apps.accounts.authentication.LenientJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
