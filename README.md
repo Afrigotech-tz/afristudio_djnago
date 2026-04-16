@@ -2,7 +2,7 @@
 
 AfriStudio is a **digital art auction platform** for African artists. Full-stack **Django REST API** converted from Laravel, with live WebSocket bidding, multi-currency support, artist wallets, and complete CRUD operations.
 
-## ✨ Key Features
+##  Key Features
 
 - **Artworks & Categories**: Browse, upload, categorize artworks
 - **Live Auctions**: Real-time bidding via WebSockets (Channels)
@@ -15,7 +15,7 @@ AfriStudio is a **digital art auction platform** for African artists. Full-stack
 - **Admin Panel**: Full Django admin interface
 - **OpenAPI Docs**: Swagger UI at `/api/schema/swagger-ui/`
 
-## 🛠 Tech Stack
+## 🛠Tech Stack
 
 ```
 Django 5 + DRF + PostgreSQL 15
@@ -28,7 +28,7 @@ Email (SMTP)
 Redis (production WebSockets)
 ```
 
-## 🚀 Quick Start (Development)
+## Quick Start (Development)
 
 ### Prerequisites
 - Python 3.11+
@@ -148,7 +148,7 @@ ws://localhost:8000/ws/auctions/{auction-uuid}/
 → {"type": "auction_update", "data": {...}}
 ```
 
-## 🧪 End-to-End Test
+## End-to-End Test
 
 1. `POST /api/auth/register` → New user
 2. `POST /api/auth/login` → JWT token  
@@ -180,7 +180,7 @@ python manage.py migrate
 python manage.py seed
 ```
 
-## ☁️ Production Deployment
+## Production Deployment
 
 ### Docker (Recommended)
 ```bash
@@ -200,7 +200,7 @@ location /ws/ { proxy_pass http://127.0.0.1:8000; proxy_http_version 1.1; proxy_
 location /media/ { alias /path/to/media; }
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -210,7 +210,7 @@ location /media/ { alias /path/to/media; }
 | Email not sending | Check `.env` SMTP settings, test with `console` backend |
 | Migrations fail | `python manage.py makemigrations --empty apps.artworks` |
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork repository
 2. Create feature branch (`git checkout -b feature/amazing-feature`)
@@ -219,10 +219,10 @@ location /media/ { alias /path/to/media; }
 
 **Linting**: `black .` | **Tests**: Coming soon!
 
-## 📄 License
+## License
 
 Proprietary software for AfriStudio.
 
 ---
 
-**Empowering African artists through digital auctions** 🌍🎨
+**Empowering African artists through digital auctions** 
