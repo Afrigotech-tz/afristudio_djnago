@@ -5,7 +5,7 @@ UUID-based lookup mirrors Laravel's route model binding on uuid.
 """
 
 from django.db.models import Count
-from rest_framework import generics, status, serializers as drf_serializers
+from rest_framework import generics, status, serializers as drf_serializers, filters
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.response import Response
@@ -265,6 +265,10 @@ class ArtworkListCreateView(generics.ListCreateAPIView):
     """
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'category__name', 'dimensions']
+    ordering_fields = ['name', 'base_price', 'created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         qs = Artwork.objects.select_related('category')

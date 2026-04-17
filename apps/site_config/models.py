@@ -126,3 +126,45 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f'[{self.get_status_display()}] {self.subject} — {self.name}'
+
+
+# ──────────────────────────────────────────────
+# Artist Profile (singleton)
+# ──────────────────────────────────────────────
+class ArtistProfile(SingletonModel):
+    name = models.CharField(max_length=255, default='Beatha Theonest')
+    location = models.CharField(max_length=255, default='Arusha, Tanzania')
+    photo = models.ImageField(upload_to='artist/', null=True, blank=True)
+    biography = models.TextField(blank=True, default='')
+    story = models.TextField(blank=True, default='')
+    philosophy = models.TextField(blank=True, default='')
+    statement = models.TextField(blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'site_artist_profile'
+        verbose_name = 'Artist Profile'
+        verbose_name_plural = 'Artist Profile'
+
+    def __str__(self):
+        return f'Artist Profile — {self.name}'
+
+
+# ──────────────────────────────────────────────
+# Exhibitions
+# ──────────────────────────────────────────────
+class Exhibition(models.Model):
+    date_label = models.CharField(max_length=50)
+    title = models.CharField(max_length=255)
+    location = models.CharField(max_length=255, blank=True, default='')
+    order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'site_exhibitions'
+        ordering = ['order', '-created_at']
+        verbose_name = 'Exhibition'
+        verbose_name_plural = 'Exhibitions'
+
+    def __str__(self):
+        return f'{self.date_label} — {self.title}'

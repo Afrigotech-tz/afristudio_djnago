@@ -117,7 +117,7 @@ def close_auction(auction: Auction):
     from django.db import transaction
     from apps.cart.models import Cart, CartItem
     from apps.orders.models import Order, OrderItem
-    from apps.notifications.service import notify
+    from apps.notifications.tasks import notify_async
     from apps.activity_logs.utils import log_activity
 
     # Pick winner: is_winning=True first, fall back to highest bid overall
@@ -190,50 +190,44 @@ def close_auction(auction: Auction):
         winner = winning_bid.bidder
 
         # 1 — Auction win notification
-        try:
-            notify(
-                user=winner,
-                subject=f'Congratulations! You won the auction for "{auction.artwork.name}"',
-                message=(
-                    f'Hi {winner.name}, you won the auction for '
-                    f'"{auction.artwork.name}" with a bid of '
-                    f'{winning_bid.amount} {auction.currency}. '
-                    f'Your order #{order.id} has been confirmed.'
-                ),
-                template='emails/auction_won.html',
-                context={
-                    'name': winner.name,
-                    'artwork_name': auction.artwork.name,
-                    'amount': str(winning_bid.amount),
-                    'currency': auction.currency,
-                    'order_id': order.id,
-                },
-            )
-        except Exception:
-            pass
+        notify_async(
+            user_id=winner.pk,
+            subject=f'Congratulations! You won the auction for "{auction.artwork.name}"',
+            message=(
+                f'Hi {winner.name}, you won the auction for '
+                f'"{auction.artwork.name}" with a bid of '
+                f'{winning_bid.amount} {auction.currency}. '
+                f'Your order #{order.id} has been confirmed.'
+            ),
+            template='emails/auction_won.html',
+            context={
+                'name': winner.name,
+                'artwork_name': auction.artwork.name,
+                'amount': str(winning_bid.amount),
+                'currency': auction.currency,
+                'order_id': order.id,
+            },
+        )
 
         # 2 — Order confirmation notification
-        try:
-            notify(
-                user=winner,
-                subject=f'Order #{order.id} Confirmed — Afristudio',
-                message=(
-                    f'Hi {winner.name}, your order #{order.id} for '
-                    f'"{auction.artwork.name}" has been confirmed. '
-                    f'Total: {order.total} {order.currency}. '
-                    f'Please update your delivery address if not already set.'
-                ),
-                template='emails/order_placed.html',
-                context={
-                    'name': winner.name,
-                    'order_id': order.id,
-                    'total': str(order.total),
-                    'currency': order.currency,
-                    'delivery_city': order.delivery_city or 'Not set — please update',
-                },
-            )
-        except Exception:
-            pass
+        notify_async(
+            user_id=winner.pk,
+            subject=f'Order #{order.id} Confirmed — Afristudio',
+            message=(
+                f'Hi {winner.name}, your order #{order.id} for '
+                f'"{auction.artwork.name}" has been confirmed. '
+                f'Total: {order.total} {order.currency}. '
+                f'Please update your delivery address if not already set.'
+            ),
+            template='emails/order_placed.html',
+            context={
+                'name': winner.name,
+                'order_id': order.id,
+                'total': str(order.total),
+                'currency': order.currency,
+                'delivery_city': order.delivery_city or 'Not set — please update',
+            },
+        )
 
         log_activity(
             user=winner,

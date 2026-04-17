@@ -46,6 +46,7 @@ from .admin_serializers import (
     PermissionSerializer,
     AssignRoleSerializer,
     AdminUserSerializer,
+    AdminUserUpdateSerializer,
 )
 from apps.artworks.models import Artwork
 from apps.artworks.serializers import ArtworkSerializer, UpdateArtworkSerializer
@@ -146,21 +147,23 @@ class AdminUserDetailView(APIView):
 
     @extend_schema(
         tags=['Admin — Users'],
-        summary='Update user flags (is_staff, is_active)',
-        request=AdminUserSerializer,
+        summary='Update user details (name, email, phone, is_staff, is_active)',
+        request=AdminUserUpdateSerializer,
         responses={200: AdminUserSerializer},
     )
     def patch(self, request, uuid):
         user = self._get_user(uuid)
-        allowed = {'is_staff', 'is_active'}
-        for field in allowed:
-            if field in request.data:
-                setattr(user, field, request.data[field])
-        user.save(update_fields=list(allowed & set(request.data.keys())) + ['updated_at'])
-        log_activity(user=request.user, subject=user,
-                     description=f'Updated user flags for {user.email or user.name}',
-                     log_name='admin', event='user_updated')
-        return Response(AdminUserSerializer(user).data)
+        serializer = AdminUserUpdateSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_user = serializer.save()
+        log_activity(
+            user=request.user,
+            subject=updated_user,
+            description=f'Admin updated details for user {updated_user.email or updated_user.name}',
+            log_name='admin',
+            event='user_updated',
+        )
+        return Response(AdminUserSerializer(updated_user).data)
 
 
 class AdminAssignRoleView(APIView):
@@ -285,7 +288,7 @@ class AdminOrderStatusView(APIView):
     @extend_schema(tags=['Admin — Content'], summary='Update order status (admin)',
                    request=UpdateOrderStatusSerializer, responses={200: OrderSerializer})
     def put(self, request, uuid):
-        from apps.notifications.service import notify
+        from apps.notifications.tasks import notify_async
         order = get_object_or_404(Order, uuid=uuid)
         serializer = UpdateOrderStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -293,8 +296,8 @@ class AdminOrderStatusView(APIView):
         order.status = serializer.validated_data['status']
         order.save(update_fields=['status', 'updated_at'])
 
-        notify(
-            user=order.user,
+        notify_async(
+            user_id=order.user.pk,
             subject=f'Your order status has been updated to {order.get_status_display()}',
             message=f'Hi {order.user.name}, your order #{order.id} status changed to {order.status}.',
         )

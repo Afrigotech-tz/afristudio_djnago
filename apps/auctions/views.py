@@ -20,7 +20,7 @@ from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import Auction, Bid, close_auction
-from .serializers import AuctionSerializer, CreateAuctionSerializer, PlaceBidSerializer, BidSerializer
+from .serializers import AuctionSerializer, CreateAuctionSerializer, UpdateAuctionSerializer, PlaceBidSerializer, BidSerializer
 from apps.activity_logs.utils import log_activity
 from apps.wallet.models import Wallet, WalletTransaction
 
@@ -100,6 +100,45 @@ class AuctionDetailView(APIView):
         auction = self._get_auction(uuid)
         auction.check_and_auto_close()
         return Response(AuctionSerializer(auction, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['Auctions'],
+        summary='Update a pending auction',
+        request=UpdateAuctionSerializer,
+        responses={200: AuctionSerializer, 422: OpenApiResponse(description='Auction is not pending.')},
+    )
+    def patch(self, request, uuid):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser or request.user.has_perm('auctions.change_auction'))):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        auction = self._get_auction(uuid)
+        if auction.status != Auction.STATUS_PENDING:
+            return Response({'message': 'Only pending auctions can be edited.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        serializer = UpdateAuctionSerializer(auction, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(auction, field, value)
+        auction.save()
+        auction.refresh_from_db()
+        return Response(AuctionSerializer(auction, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['Auctions'],
+        summary='Delete a pending auction',
+        responses={204: None, 422: OpenApiResponse(description='Auction is not pending.')},
+    )
+    def delete(self, request, uuid):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser or request.user.has_perm('auctions.delete_auction'))):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        auction = self._get_auction(uuid)
+        if auction.status != Auction.STATUS_PENDING:
+            return Response({'message': 'Only pending auctions can be deleted.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        log_activity(user=request.user, subject=None,
+                     description=f'Deleted pending auction for "{auction.artwork.name}"',
+                     log_name='auctions', event='auction_deleted')
+        auction.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AuctionStartView(APIView):

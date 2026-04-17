@@ -5,7 +5,7 @@ site_config/serializers.py
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
-from .models import LandingHero, HeroContent, ContactInfo, ContactMessage
+from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, ArtistProfile, Exhibition
 
 
 class LandingHeroSerializer(serializers.ModelSerializer):
@@ -80,3 +80,40 @@ class ContactMessageStatusSerializer(serializers.ModelSerializer):
         if value not in valid:
             raise serializers.ValidationError(f'Status must be one of: {", ".join(valid)}')
         return value
+
+
+class ArtistProfileSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ArtistProfile
+        fields = ['name', 'location', 'photo_url', 'biography', 'story', 'philosophy', 'statement', 'updated_at']
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_photo_url(self, obj):
+        request = self.context.get('request')
+        if obj.photo and request:
+            return request.build_absolute_uri(obj.photo.url)
+        return None
+
+
+class ArtistProfileUpdateSerializer(serializers.ModelSerializer):
+    photo = serializers.ImageField(required=False)
+
+    class Meta:
+        model = ArtistProfile
+        fields = ['name', 'location', 'photo', 'biography', 'story', 'philosophy', 'statement']
+        extra_kwargs = {f: {'required': False} for f in ['name', 'location', 'photo', 'biography', 'story', 'philosophy', 'statement']}
+
+
+class ExhibitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exhibition
+        fields = ['id', 'date_label', 'title', 'location', 'order']
+
+
+class ExhibitionWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exhibition
+        fields = ['date_label', 'title', 'location', 'order']
+        extra_kwargs = {'order': {'required': False}}

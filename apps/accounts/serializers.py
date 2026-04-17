@@ -120,3 +120,39 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ['bio', 'address', 'city', 'avatar']
+
+
+class UpdateUserSerializer(serializers.ModelSerializer):
+    """Allows an authenticated user to update their own name, email, and phone."""
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'phone']
+
+    def validate_email(self, value):
+        value = value or None
+        if value:
+            qs = User.objects.filter(email=value)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError('This email is already taken.')
+        return value
+
+    def validate_phone(self, value):
+        value = value or None
+        if value:
+            qs = User.objects.filter(phone=value)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError('This phone number is already taken.')
+        return value
+
+    def update(self, instance, validated_data):
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        instance.save(update_fields=list(validated_data.keys()) + ['updated_at'])
+        return instance

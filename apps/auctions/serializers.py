@@ -61,5 +61,21 @@ class CreateAuctionSerializer(serializers.Serializer):
         return data
 
 
+class UpdateAuctionSerializer(serializers.Serializer):
+    start_price    = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'), required=False)
+    reserve_price  = serializers.DecimalField(max_digits=15, decimal_places=2, required=False, allow_null=True)
+    bid_increment  = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'), required=False)
+    currency       = serializers.CharField(max_length=3, required=False)
+    start_time     = serializers.DateTimeField(required=False)
+    end_time       = serializers.DateTimeField(required=False)
+
+    def validate(self, data):
+        st = data.get('start_time', self.instance.start_time if self.instance else None)
+        et = data.get('end_time',   self.instance.end_time   if self.instance else None)
+        if st and et and et <= st:
+            raise serializers.ValidationError('end_time must be after start_time.')
+        return data
+
+
 class PlaceBidSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'))

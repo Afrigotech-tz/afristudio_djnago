@@ -21,6 +21,7 @@ from drf_spectacular.utils import (
 
 from apps.activity_logs.utils import log_activity
 from apps.notifications.service import notify
+from apps.notifications.tasks import notify_async
 from .models import Profile
 from .serializers import (
     RegisterSerializer,
@@ -31,6 +32,7 @@ from .serializers import (
     UserSerializer,
     ProfileSerializer,
     UpdateProfileSerializer,
+    UpdateUserSerializer,
 )
 
 User = get_user_model()
@@ -120,8 +122,8 @@ class RegisterView(APIView):
         )
 
         channel = 'email' if user.email else 'phone'
-        notify(
-            user=user,
+        notify_async(
+            user_id=user.pk,
             subject='Verify your Afristudio Account',
             message=f'Hi {user.name}, your verification code is: {code}',
             template='emails/verify_account.html',
@@ -354,6 +356,29 @@ class MeView(APIView):
         return Response(UserSerializer(request.user).data)
 
 
+class UpdateMeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Auth'],
+        summary='Update own account details (name, email, phone)',
+        description='Allows the authenticated user to update their own name, email, or phone number.',
+        request=UpdateUserSerializer,
+        responses={200: OpenApiResponse(response=UserSerializer, description='Updated user.')},
+    )
+    def patch(self, request):
+        serializer = UpdateUserSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        log_activity(
+            user=user,
+            description='Updated own account details',
+            log_name='auth',
+            event='profile_updated',
+        )
+        return Response(UserSerializer(user).data)
+
+
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
 
@@ -402,8 +427,8 @@ class ForgotPasswordView(APIView):
 
         log_activity(user=user, description='Requested a password reset OTP', log_name='auth', event='forgot_password')
 
-        notify(
-            user=user,
+        notify_async(
+            user_id=user.pk,
             subject='Password Reset Code',
             message=f'Hi {user.name}, your reset code is: {code}',
             template='emails/forgot_password.html',

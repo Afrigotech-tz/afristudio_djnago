@@ -7,6 +7,7 @@ from apps.accounts.views import (
     LoginView,
     LogoutView,
     MeView,
+    UpdateMeView,
     ForgotPasswordView,
     ResetPasswordView,
 )
@@ -28,6 +29,7 @@ auth_urlpatterns = [
 # ──────────────────────────────────────────────
 user_urlpatterns = [
     path('me', MeView.as_view(), name='auth-me'),
+    path('me/update', UpdateMeView.as_view(), name='auth-me-update'),
     path('logout', LogoutView.as_view(), name='auth-logout'),
 ]
 

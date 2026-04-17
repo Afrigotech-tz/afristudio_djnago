@@ -11,8 +11,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAdminUser
 from .models import Wallet, WalletTransaction
-from .serializers import WalletSerializer, DepositSerializer
+from .serializers import WalletSerializer, DepositSerializer, AdminWalletSerializer
 
 
 def _get_or_create_wallet(user):
@@ -68,3 +71,46 @@ class WalletDepositView(APIView):
 
         wallet.refresh_from_db()
         return Response(WalletSerializer(wallet).data, status=status.HTTP_201_CREATED)
+
+
+# ──────────────────────────────────────────────
+# Admin wallet management
+# ──────────────────────────────────────────────
+
+class AdminWalletListView(APIView):
+    """GET /api/admin/wallets/ — list all user wallets (admin only)"""
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(tags=['Admin'], summary='List all user wallets', responses={200: AdminWalletSerializer(many=True)})
+    def get(self, request):
+        qs = Wallet.objects.select_related('user').all().order_by('-balance')
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(Q(user__name__icontains=search) | Q(user__email__icontains=search))
+        return Response(AdminWalletSerializer(qs, many=True).data)
+
+
+class AdminWalletCreditView(APIView):
+    """POST /api/admin/wallets/<id>/credit/ — credit a user's wallet (admin only)"""
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='Credit a user wallet',
+        request=DepositSerializer,
+        responses={200: AdminWalletSerializer},
+    )
+    def post(self, request, pk):
+        get_object_or_404(Wallet, pk=pk)  # 404 check
+        serializer = DepositSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        with db_transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(pk=pk)
+            wallet.credit(
+                amount=data['amount'],
+                description=data.get('description', 'Admin credit'),
+                tx_type=WalletTransaction.TYPE_DEPOSIT,
+            )
+        wallet.refresh_from_db()
+        return Response(AdminWalletSerializer(wallet).data)

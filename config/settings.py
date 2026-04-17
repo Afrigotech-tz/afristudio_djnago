@@ -147,7 +147,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'config.pagination.DynamicPageSizePagination',
     'PAGE_SIZE': 20,
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
@@ -210,6 +210,19 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit per task
+# Fail fast if broker is unreachable (prevents request hangs)
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_timeout': 4,
+    'socket_connect_timeout': 4,
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    'socket_timeout': 4,
+    'socket_connect_timeout': 4,
+}
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 0  # don't retry inside a request
+# Notifications are fire-and-forget — no need to persist task results in Redis
+CELERY_TASK_IGNORE_RESULT = True
 
 # ──────────────────────────────────────────────
 # drf-spectacular  (OpenAPI 3 / Swagger / ReDoc)

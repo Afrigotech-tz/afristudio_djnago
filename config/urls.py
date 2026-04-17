@@ -10,6 +10,7 @@ from drf_spectacular.views import (
 
 from apps.accounts.urls.auth_urls import auth_urlpatterns, user_urlpatterns
 from apps.accounts.urls.admin_urls import admin_urlpatterns
+from apps.wallet.urls import admin_urlpatterns as wallet_admin_urlpatterns
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -51,7 +52,7 @@ urlpatterns = [
     path('api/orders/', include('apps.orders.urls')),
 
     # Admin management (roles, permissions, all content)
-    path('api/admin/', include((admin_urlpatterns, 'admin_api'))),
+    path('api/admin/', include((admin_urlpatterns + wallet_admin_urlpatterns, 'admin_api'))),
 
     # Site configuration (hero image, contact info, contact messages)
     path('api/site/', include('apps.site_config.urls')),

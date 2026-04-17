@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from .models import LandingHero, HeroContent, ContactInfo, ContactMessage
+from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, ArtistProfile, Exhibition
 from .serializers import (
     LandingHeroSerializer,
     LandingHeroUpdateSerializer,
@@ -21,6 +21,10 @@ from .serializers import (
     ContactMessageCreateSerializer,
     ContactMessageSerializer,
     ContactMessageStatusSerializer,
+    ArtistProfileSerializer,
+    ArtistProfileUpdateSerializer,
+    ExhibitionSerializer,
+    ExhibitionWriteSerializer,
 )
 
 
@@ -258,3 +262,112 @@ class ContactMessageStatusView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(ContactMessageSerializer(msg).data)
+
+
+class ContactMessageDeleteView(APIView):
+    """
+    DELETE /api/site/contact/messages/<pk>/   → admin — delete a message
+    """
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(tags=['Site Config'], summary='Delete a contact message', responses={204: None, 404: OpenApiResponse(description='Not found.')})
+    def delete(self, request, pk):
+        try:
+            msg = ContactMessage.objects.get(pk=pk)
+        except ContactMessage.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        msg.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ──────────────────────────────────────────────
+# Artist Profile
+# ──────────────────────────────────────────────
+
+class ArtistProfileView(APIView):
+    """
+    GET   /api/site/artist/   → public
+    PATCH /api/site/artist/   → admin
+    """
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdminUser()]
+
+    @extend_schema(tags=['Site Config'], summary='Get artist profile', responses={200: ArtistProfileSerializer})
+    def get(self, request):
+        profile = ArtistProfile.load()
+        return Response(ArtistProfileSerializer(profile, context={'request': request}).data)
+
+    @extend_schema(tags=['Site Config'], summary='Update artist profile', request=ArtistProfileUpdateSerializer, responses={200: ArtistProfileSerializer})
+    def patch(self, request):
+        profile = ArtistProfile.load()
+        serializer = ArtistProfileUpdateSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        profile.refresh_from_db()
+        return Response(ArtistProfileSerializer(profile, context={'request': request}).data)
+
+
+# ──────────────────────────────────────────────
+# Exhibitions
+# ──────────────────────────────────────────────
+
+class ExhibitionListCreateView(APIView):
+    """
+    GET  /api/site/exhibitions/  → public
+    POST /api/site/exhibitions/  → admin
+    """
+    parser_classes = [JSONParser]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdminUser()]
+
+    @extend_schema(tags=['Site Config'], summary='List exhibitions', responses={200: ExhibitionSerializer(many=True)})
+    def get(self, request):
+        qs = Exhibition.objects.all()
+        return Response(ExhibitionSerializer(qs, many=True).data)
+
+    @extend_schema(tags=['Site Config'], summary='Create exhibition', request=ExhibitionWriteSerializer, responses={201: ExhibitionSerializer})
+    def post(self, request):
+        serializer = ExhibitionWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        obj = serializer.save()
+        return Response(ExhibitionSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class ExhibitionDetailView(APIView):
+    """
+    PUT    /api/site/exhibitions/<pk>/  → admin
+    DELETE /api/site/exhibitions/<pk>/  → admin
+    """
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        try:
+            return Exhibition.objects.get(pk=pk)
+        except Exhibition.DoesNotExist:
+            return None
+
+    @extend_schema(tags=['Site Config'], summary='Update exhibition', request=ExhibitionWriteSerializer, responses={200: ExhibitionSerializer})
+    def put(self, request, pk):
+        obj = self._get(pk)
+        if not obj:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ExhibitionWriteSerializer(obj, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        obj.refresh_from_db()
+        return Response(ExhibitionSerializer(obj).data)
+
+    @extend_schema(tags=['Site Config'], summary='Delete exhibition', responses={204: None})
+    def delete(self, request, pk):
+        obj = self._get(pk)
+        if not obj:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
