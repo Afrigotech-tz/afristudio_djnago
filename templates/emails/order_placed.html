@@ -8,8 +8,7 @@
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
         .wrapper { width: 100%; table-layout: fixed; background-color: #f4f4f4; padding-bottom: 40px; }
         .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #333333; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        .header { background-color: #1a1a1a; padding: 30px; text-align: center; }
-        .logo-text { color: #d4af37; font-size: 28px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+        .header { background-color: #1a1a1a; padding: 0; text-align: center; }
         .content { padding: 40px 30px; text-align: center; line-height: 1.6; }
         .content h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 20px; }
         .order-box { background-color: #f9f9f9; border: 1px solid #e0e0e0; padding: 20px 30px; margin: 20px 0; border-radius: 8px; text-align: left; }
@@ -24,10 +23,7 @@
     <center class="wrapper">
         <table class="main" width="100%">
             <tr>
-                <td class="header">
-                    <p class="logo-text">AFRISTUDIO</p>
-                    <div style="font-size: 10px; color: #888; letter-spacing: 1px; margin-top: 5px;">ART &amp; ARTISTRY</div>
-                </td>
+                {% include 'emails/_logo_header.html' %}
             </tr>
             <tr>
                 <td class="content">

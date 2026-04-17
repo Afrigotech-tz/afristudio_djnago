@@ -55,6 +55,9 @@ urlpatterns = [
 
     # Site configuration (hero image, contact info, contact messages)
     path('api/site/', include('apps.site_config.urls')),
+
+    # Reports (admin-only)
+    path('api/reports/', include('apps.reports.urls')),
 ]
 
 # Serve media files in development
