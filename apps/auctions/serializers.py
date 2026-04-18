@@ -22,6 +22,7 @@ class AuctionSerializer(serializers.ModelSerializer):
     minimum_next_bid = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
     top_bids = serializers.SerializerMethodField()
     seconds_remaining = serializers.SerializerMethodField()
+    unique_bidders = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -30,13 +31,17 @@ class AuctionSerializer(serializers.ModelSerializer):
             'created_by_name', 'start_price', 'reserve_price',
             'current_price', 'bid_increment', 'minimum_next_bid',
             'currency', 'start_time', 'end_time', 'status',
-            'winner_name', 'total_bids', 'top_bids', 'seconds_remaining',
+            'winner_name', 'total_bids', 'unique_bidders', 'top_bids', 'seconds_remaining',
             'created_at',
         ]
 
     @extend_schema_field(BidSerializer(many=True))
     def get_top_bids(self, obj):
         return BidSerializer(obj.bids.order_by('-amount')[:10], many=True).data
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_unique_bidders(self, obj):
+        return obj.bids.values('bidder').distinct().count()
 
     @extend_schema_field(serializers.IntegerField())
     def get_seconds_remaining(self, obj):
