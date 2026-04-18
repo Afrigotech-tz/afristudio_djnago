@@ -49,12 +49,14 @@ LOCAL_APPS = [
     'apps.orders',
     'apps.site_config',
     'apps.reports',
+    'apps.security',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'apps.security.middleware.IPSecurityMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -227,6 +229,15 @@ CELERY_TASK_IGNORE_RESULT = True
 # Tasks still execute in the background thread spawned by dispatch_*, so the
 # HTTP response returns immediately — no broker connection required.
 CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
+
+# ──────────────────────────────────────────────
+# IP Security / Rate Limiting
+# ──────────────────────────────────────────────
+# Max requests per IP per window (seconds)
+SECURITY_RATE_LIMIT_REQUESTS = config('SECURITY_RATE_LIMIT_REQUESTS', default=120, cast=int)
+SECURITY_RATE_LIMIT_WINDOW   = config('SECURITY_RATE_LIMIT_WINDOW',   default=60,  cast=int)
+# Auto-block after this many rate-limit violations
+SECURITY_AUTO_BLOCK_THRESHOLD = config('SECURITY_AUTO_BLOCK_THRESHOLD', default=10, cast=int)
 
 # ──────────────────────────────────────────────
 # drf-spectacular  (OpenAPI 3 / Swagger / ReDoc)

@@ -59,6 +59,9 @@ urlpatterns = [
 
     # Reports (admin-only)
     path('api/reports/', include('apps.reports.urls')),
+
+    # Security — blocked IPs, rate-limit violations, performance stats
+    path('api/security/', include('apps.security.urls')),
 ]
 
 # Serve media files in development
