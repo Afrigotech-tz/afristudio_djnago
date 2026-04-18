@@ -260,6 +260,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Categories',    'description': 'Artwork category management'},
         {'name': 'Currencies',    'description': 'Exchange-rate management'},
         {'name': 'Activity Logs', 'description': 'Read-only audit trail of system events'},
+        {'name': 'Security',      'description': 'IP blocking, rate-limit violations and performance stats'},
     ],
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': '/api/',
@@ -267,13 +268,16 @@ SPECTACULAR_SETTINGS = {
         'defaultModelsExpandDepth': -1,
     },
     'ENUM_NAME_OVERRIDES': {
-        'AuctionStatusEnum':  'apps.auctions.models.Auction.STATUS_CHOICES',
-        'OrderStatusEnum':    'apps.orders.models.Order.STATUS_CHOICES',
+        'AuctionStatusEnum':       'apps.auctions.models.Auction.STATUS_CHOICES',
+        'OrderStatusEnum':         'apps.orders.models.Order.STATUS_CHOICES',
         'NotificationChannelEnum': 'apps.notifications.models.NotificationLog.CHANNEL_CHOICES',
         'NotificationStatusEnum':  'apps.notifications.models.NotificationLog.STATUS_CHOICES',
-        'WalletTxTypeEnum':   'apps.wallet.models.WalletTransaction.TYPE_CHOICES',
-        'CartItemSourceEnum': 'apps.cart.models.CartItem.SOURCE_CHOICES',
+        'WalletTxTypeEnum':        'apps.wallet.models.WalletTransaction.TYPE_CHOICES',
+        'CartItemSourceEnum':      'apps.cart.models.CartItem.SOURCE_CHOICES',
+        'RequestMethodEnum':       'apps.security.models.RequestLog.METHOD_CHOICES',
     },
+    # Prevent operationId collisions on views that share a base path
+    'OPERATION_ID_OVERRIDE': {},
 }
 
 # ──────────────────────────────────────────────
