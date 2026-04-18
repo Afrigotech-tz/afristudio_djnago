@@ -20,8 +20,7 @@ from drf_spectacular.utils import (
 )
 
 from apps.activity_logs.utils import log_activity
-from apps.notifications.service import notify
-from apps.notifications.tasks import notify_async
+from .tasks import dispatch_verification_otp, dispatch_password_reset_otp
 from .models import Profile
 from .serializers import (
     RegisterSerializer,
@@ -122,13 +121,7 @@ class RegisterView(APIView):
         )
 
         channel = 'email' if user.email else 'phone'
-        notify_async(
-            user_id=user.pk,
-            subject='Verify your Afristudio Account',
-            message=f'Hi {user.name}, your verification code is: {code}',
-            template='emails/verify_account.html',
-            context={'name': user.name, 'code': code},
-        )
+        dispatch_verification_otp(user.pk, code)
 
         return Response(
             {'message': f'Account created. Please check your {channel} for the verification code.'},
@@ -426,14 +419,7 @@ class ForgotPasswordView(APIView):
         user.save(update_fields=['verification_code'])
 
         log_activity(user=user, description='Requested a password reset OTP', log_name='auth', event='forgot_password')
-
-        notify_async(
-            user_id=user.pk,
-            subject='Password Reset Code',
-            message=f'Hi {user.name}, your reset code is: {code}',
-            template='emails/forgot_password.html',
-            context={'name': user.name, 'code': code},
-        )
+        dispatch_password_reset_otp(user.pk, code)
 
         return Response({'message': 'Reset code sent to your registered contact.'})
 

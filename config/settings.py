@@ -223,6 +223,10 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 0  # don't retry inside a request
 # Notifications are fire-and-forget — no need to persist task results in Redis
 CELERY_TASK_IGNORE_RESULT = True
+# Set CELERY_TASK_ALWAYS_EAGER=True in .env when Redis is not running locally.
+# Tasks still execute in the background thread spawned by dispatch_*, so the
+# HTTP response returns immediately — no broker connection required.
+CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
 
 # ──────────────────────────────────────────────
 # drf-spectacular  (OpenAPI 3 / Swagger / ReDoc)

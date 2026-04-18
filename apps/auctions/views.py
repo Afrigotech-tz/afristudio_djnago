@@ -10,7 +10,7 @@ POST   /api/auctions/<uuid>/bid/         — place a bid (authenticated users)
 """
 
 import json
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -64,20 +64,36 @@ class AuctionListCreateView(APIView):
         if artwork.is_sold:
             return Response({'message': 'This artwork has already been sold.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-        if hasattr(artwork, 'auction') and artwork.auction.status in [Auction.STATUS_PENDING, Auction.STATUS_LIVE]:
-            return Response({'message': 'This artwork already has an active auction.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if hasattr(artwork, 'auction'):
+            existing = artwork.auction
+            if existing.status in (Auction.STATUS_PENDING, Auction.STATUS_LIVE):
+                return Response(
+                    {'message': 'This artwork already has an active auction.'},
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
+            # ended auctions also hold the unique slot — one auction per artwork
+            return Response(
+                {'message': 'This artwork has already been auctioned. Each artwork can only be auctioned once.'},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
 
-        auction = Auction.objects.create(
-            artwork=artwork,
-            created_by=request.user,
-            start_price=data['start_price'],
-            reserve_price=data.get('reserve_price'),
-            current_price=data['start_price'],
-            bid_increment=data['bid_increment'],
-            currency=data['currency'],
-            start_time=data['start_time'],
-            end_time=data['end_time'],
-        )
+        try:
+            auction = Auction.objects.create(
+                artwork=artwork,
+                created_by=request.user,
+                start_price=data['start_price'],
+                reserve_price=data.get('reserve_price'),
+                current_price=data['start_price'],
+                bid_increment=data['bid_increment'],
+                currency=data['currency'],
+                start_time=data['start_time'],
+                end_time=data['end_time'],
+            )
+        except IntegrityError:
+            return Response(
+                {'message': 'This artwork is already linked to an auction.'},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
 
         log_activity(user=request.user, subject=auction,
                      description=f'Created auction for "{artwork.name}"',
