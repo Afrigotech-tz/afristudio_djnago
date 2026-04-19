@@ -6,8 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
-from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.utils import extend_schema, inline_serializer
 import rest_framework.serializers as s
 
 from .models import BlockedIP, BlockedDevice, RateLimitViolation, RequestLog, SecurityConfig
@@ -63,6 +62,26 @@ class BlockedIPListCreateView(APIView):
         return Response(BlockedIPSerializer(obj).data, status=status.HTTP_201_CREATED)
 
 
+class BlockedIPBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Security'], summary='Bulk-delete blocked IPs',
+                   request=inline_serializer('BulkDeleteIds', {'ids': s.ListField(child=s.IntegerField())}),
+                   responses={204: None})
+    def delete(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'detail': 'No ids provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        ips = list(BlockedIP.objects.filter(pk__in=ids).values_list('ip', flat=True))
+        BlockedIP.objects.filter(pk__in=ids).delete()
+        from django.core.cache import cache
+        for ip in ips:
+            cache.delete(f'ip_blocked:{ip}')
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class BlockedIPDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -108,6 +127,26 @@ class BlockedDeviceListView(APIView):
         return Response(BlockedDeviceSerializer(qs, many=True).data)
 
 
+class BlockedDeviceBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Security'], summary='Bulk-delete blocked devices',
+                   request=inline_serializer('BulkDeleteDeviceIds', {'ids': s.ListField(child=s.IntegerField())}),
+                   responses={204: None})
+    def delete(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'detail': 'No ids provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        sigs = list(BlockedDevice.objects.filter(pk__in=ids).values_list('device_signature', flat=True))
+        BlockedDevice.objects.filter(pk__in=ids).delete()
+        from django.core.cache import cache
+        for sig in sigs:
+            cache.delete(f'dev_blocked:{sig}')
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class BlockedDeviceDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -141,6 +180,22 @@ class RateLimitViolationListView(APIView):
         if search:
             qs = qs.filter(ip__icontains=search)
         return Response(RateLimitViolationSerializer(qs[:200], many=True).data)
+
+
+class RateLimitViolationBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Security'], summary='Bulk-delete rate-limit violations',
+                   request=inline_serializer('BulkDeleteViolationIds', {'ids': s.ListField(child=s.IntegerField())}),
+                   responses={204: None})
+    def delete(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'detail': 'No ids provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        RateLimitViolation.objects.filter(pk__in=ids).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RateLimitViolationDetailView(APIView):
@@ -347,3 +402,58 @@ class SecurityStatsView(APIView):
             'recent_violations':   recent_violations,
             'recent_blocked':      recent_blocked,
         })
+
+
+# ── Error Requests ────────────────────────────────────────────────────────────
+
+_ErrorLogSerializer = inline_serializer(
+    name='ErrorRequestLog',
+    many=True,
+    fields={
+        'id':               s.IntegerField(),
+        'ip':               s.CharField(),
+        'method':           s.CharField(),
+        'path':             s.CharField(),
+        'status_code':      s.IntegerField(allow_null=True),
+        'response_time_ms': s.IntegerField(allow_null=True),
+        'user_agent':       s.CharField(),
+        'created_at':       s.DateTimeField(),
+    },
+)
+
+
+class ErrorRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Security'],
+        summary='Recent requests with 4xx / 5xx status codes',
+        responses={200: _ErrorLogSerializer},
+    )
+    def get(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+
+        now        = timezone.now()
+        since_days = int(request.query_params.get('days', 1))
+        since      = now - timedelta(days=since_days)
+        min_status = int(request.query_params.get('min_status', 400))
+        search     = request.query_params.get('search', '').strip()
+        limit      = min(int(request.query_params.get('limit', 200)), 500)
+
+        qs = RequestLog.objects.filter(
+            created_at__gte=since,
+            status_code__gte=min_status,
+        ).order_by('-created_at')
+
+        if search:
+            qs = qs.filter(
+                Q(ip__icontains=search) |
+                Q(path__icontains=search) |
+                Q(method__icontains=search)
+            )
+
+        rows = list(
+            qs.values('id', 'ip', 'method', 'path', 'status_code', 'response_time_ms', 'user_agent', 'created_at')[:limit]
+        )
+        return Response(rows)

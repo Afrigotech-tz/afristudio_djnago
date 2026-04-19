@@ -202,6 +202,41 @@ class AdminRemoveRoleView(APIView):
         return Response(AdminUserSerializer(user).data)
 
 
+class AdminVerifyUserView(APIView):
+    """
+    POST  /api/admin/users/<uuid>/verify/   — manually mark verified_at = now
+    DELETE /api/admin/users/<uuid>/verify/  — clear verified_at (unverify)
+    """
+    permission_classes = [IsAuthenticated, IsAdminOrStaff]
+
+    @extend_schema(tags=['Admin — Users'], summary='Manually verify a user account',
+                   responses={200: AdminUserSerializer})
+    def post(self, request, uuid):
+        from django.utils import timezone
+        user = get_object_or_404(User, uuid=uuid)
+        if user.verified_at:
+            return Response({'detail': 'User is already verified.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        user.verified_at = timezone.now()
+        user.save(update_fields=['verified_at'])
+        log_activity(user=request.user, subject=user,
+                     description=f'Admin manually verified account for {user.email or user.name}',
+                     log_name='admin', event='user_verified')
+        return Response(AdminUserSerializer(user).data)
+
+    @extend_schema(tags=['Admin — Users'], summary='Revoke verification of a user account',
+                   responses={200: AdminUserSerializer})
+    def delete(self, request, uuid):
+        user = get_object_or_404(User, uuid=uuid)
+        if not user.verified_at:
+            return Response({'detail': 'User is not verified.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        user.verified_at = None
+        user.save(update_fields=['verified_at'])
+        log_activity(user=request.user, subject=user,
+                     description=f'Admin revoked verification for {user.email or user.name}',
+                     log_name='admin', event='user_unverified')
+        return Response(AdminUserSerializer(user).data)
+
+
 # ─── Admin: All Artworks ──────────────────────────────────────────────────────
 
 class AdminArtworkListView(APIView):
