@@ -29,6 +29,9 @@ urlpatterns = [
     # Profile  — /api/profile/
     path('api/profile/', include('apps.accounts.urls.profile_urls')),
 
+    # Addresses — /api/addresses/
+    path('api/addresses/', include('apps.accounts.urls.address_urls')),
+
     # Artworks & Categories  (public list/show, auth required for CUD)
     path('api/artworks/', include('apps.artworks.urls.artwork_urls')),
     path('api/categories/', include('apps.artworks.urls.category_urls')),

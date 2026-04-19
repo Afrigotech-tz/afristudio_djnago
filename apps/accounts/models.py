@@ -124,3 +124,31 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"Profile of {self.user}"
+
+
+# ──────────────────────────────────────────────
+# Address  (multiple per user, one is default)
+# ──────────────────────────────────────────────
+class Address(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses')
+    label      = models.CharField(max_length=50, blank=True, default='', help_text='e.g. Home, Work, Other')
+    full_name  = models.CharField(max_length=255)
+    phone      = models.CharField(max_length=30, blank=True, default='')
+    address    = models.TextField()
+    city       = models.CharField(max_length=100)
+    country    = models.CharField(max_length=100, default='Tanzania')
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'addresses'
+        ordering = ['-is_default', '-created_at']
+
+    def set_as_default(self):
+        Address.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
+        self.is_default = True
+        self.save(update_fields=['is_default'])
+
+    def __str__(self):
+        return f"{self.label or 'Address'} — {self.user}"

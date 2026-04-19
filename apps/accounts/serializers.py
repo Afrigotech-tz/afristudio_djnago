@@ -156,3 +156,22 @@ class UpdateUserSerializer(serializers.ModelSerializer):
             setattr(instance, attr, val)
         instance.save(update_fields=list(validated_data.keys()) + ['updated_at'])
         return instance
+
+
+# ──────────────────────────────────────────────
+# Address serializers
+# ──────────────────────────────────────────────
+from .models import Address
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['id', 'label', 'full_name', 'phone', 'address', 'city', 'country', 'is_default', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'is_default', 'created_at', 'updated_at']
+
+
+class AddressWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['label', 'full_name', 'phone', 'address', 'city', 'country']

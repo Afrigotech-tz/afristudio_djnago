@@ -594,3 +594,66 @@ class RemoveAvatarView(APIView):
             profile.save(update_fields=['avatar'])
             return Response({'message': 'Avatar removed.'})
         return Response({'message': 'No avatar to remove.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# ── Address views ─────────────────────────────────────────────────────────────
+
+from .models import Address
+from .serializers import AddressSerializer, AddressWriteSerializer
+
+
+class AddressListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Addresses'], summary='List my addresses', responses={200: AddressSerializer(many=True)})
+    def get(self, request):
+        qs = Address.objects.filter(user=request.user)
+        return Response(AddressSerializer(qs, many=True).data)
+
+    @extend_schema(tags=['Addresses'], summary='Add a new address',
+                   request=AddressWriteSerializer, responses={201: AddressSerializer})
+    def post(self, request):
+        ser = AddressWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        is_first = not Address.objects.filter(user=request.user).exists()
+        obj = ser.save(user=request.user, is_default=is_first)
+        return Response(AddressSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class AddressDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        return get_object_or_404(Address, pk=pk, user=request.user)
+
+    @extend_schema(tags=['Addresses'], summary='Update an address',
+                   request=AddressWriteSerializer, responses={200: AddressSerializer})
+    def patch(self, request, pk):
+        obj = self._get(request, pk)
+        ser = AddressWriteSerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(AddressSerializer(obj).data)
+
+    @extend_schema(tags=['Addresses'], summary='Delete an address', responses={204: None})
+    def delete(self, request, pk):
+        obj = self._get(request, pk)
+        was_default = obj.is_default
+        obj.delete()
+        if was_default:
+            next_addr = Address.objects.filter(user=request.user).first()
+            if next_addr:
+                next_addr.set_as_default()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AddressSetDefaultView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Addresses'], summary='Set an address as default', responses={200: AddressSerializer})
+    def post(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        obj = get_object_or_404(Address, pk=pk, user=request.user)
+        obj.set_as_default()
+        return Response(AddressSerializer(obj).data)
