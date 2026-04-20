@@ -33,8 +33,9 @@ class SingletonModel(models.Model):
 # Landing page hero image
 # ──────────────────────────────────────────────
 class LandingHero(SingletonModel):
-    """Stores the hero/banner image shown on the public landing page."""
-    image = models.ImageField(upload_to='landing/', null=True, blank=True)
+    """Stores the hero/banner image and site favicon shown on the public landing page."""
+    image   = models.ImageField(upload_to='landing/',  null=True, blank=True)
+    favicon = models.ImageField(upload_to='favicons/', null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

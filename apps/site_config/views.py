@@ -14,6 +14,7 @@ from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, Artis
 from .serializers import (
     LandingHeroSerializer,
     LandingHeroUpdateSerializer,
+    LandingFaviconUpdateSerializer,
     HeroContentSerializer,
     HeroContentUpdateSerializer,
     ContactInfoSerializer,
@@ -70,6 +71,52 @@ class LandingHeroView(APIView):
         # Remove old image file before saving new one
         if hero.image:
             hero.image.delete(save=False)
+        serializer.save()
+        hero.refresh_from_db()
+        return Response(LandingHeroSerializer(hero, context={'request': request}).data)
+
+
+# ──────────────────────────────────────────────
+# Site Favicon
+# ──────────────────────────────────────────────
+
+class LandingFaviconView(APIView):
+    """
+    GET  /api/site/favicon/   → public — returns current favicon URL
+    PUT  /api/site/favicon/   → admin  — replace the favicon
+    """
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdminUser()]
+
+    @extend_schema(
+        tags=['Site Config'],
+        summary='Get site favicon',
+        responses={200: LandingHeroSerializer},
+    )
+    def get(self, request):
+        hero = LandingHero.load()
+        return Response(LandingHeroSerializer(hero, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['Site Config'],
+        summary='Update site favicon',
+        request=LandingFaviconUpdateSerializer,
+        responses={
+            200: LandingHeroSerializer,
+            400: OpenApiResponse(description='Validation error.'),
+            403: OpenApiResponse(description='Admin access required.'),
+        },
+    )
+    def put(self, request):
+        hero = LandingHero.load()
+        serializer = LandingFaviconUpdateSerializer(hero, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if hero.favicon:
+            hero.favicon.delete(save=False)
         serializer.save()
         hero.refresh_from_db()
         return Response(LandingHeroSerializer(hero, context={'request': request}).data)

@@ -8,18 +8,27 @@ from drf_spectacular.types import OpenApiTypes
 from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, ArtistProfile, Exhibition
 
 
+
 class LandingHeroSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    image_url   = serializers.SerializerMethodField()
+    favicon_url = serializers.SerializerMethodField()
 
     class Meta:
         model = LandingHero
-        fields = ['image_url', 'updated_at']
+        fields = ['image_url', 'favicon_url', 'updated_at']
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_image_url(self, obj):
         request = self.context.get('request')
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
+        return None
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_favicon_url(self, obj):
+        request = self.context.get('request')
+        if obj.favicon and request:
+            return request.build_absolute_uri(obj.favicon.url)
         return None
 
 
@@ -29,6 +38,14 @@ class LandingHeroUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = LandingHero
         fields = ['image']
+
+
+class LandingFaviconUpdateSerializer(serializers.ModelSerializer):
+    favicon = serializers.ImageField(required=True)
+
+    class Meta:
+        model = LandingHero
+        fields = ['favicon']
 
 
 class HeroContentSerializer(serializers.ModelSerializer):

@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     LandingHeroView,
+    LandingFaviconView,
     HeroContentView,
     ContactInfoView,
     ContactMessageCreateView,
@@ -15,6 +16,7 @@ from .views import (
 
 urlpatterns = [
     path('hero/', LandingHeroView.as_view(), name='site-hero'),
+    path('favicon/', LandingFaviconView.as_view(), name='site-favicon'),
     path('hero-content/', HeroContentView.as_view(), name='site-hero-content'),
     path('contact-info/', ContactInfoView.as_view(), name='site-contact-info'),
     path('contact/', ContactMessageCreateView.as_view(), name='site-contact-submit'),
