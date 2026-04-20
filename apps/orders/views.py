@@ -32,6 +32,10 @@ def _is_manager(user) -> bool:
     return user.is_staff or user.is_superuser or user.has_perm('orders.change_order')
 
 
+def _is_artist(user) -> bool:
+    return user.groups.filter(name='Artist').exists()
+
+
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -138,6 +142,10 @@ class OrderListView(APIView):
             user_uuid = request.query_params.get('user_uuid')
             if user_uuid:
                 qs = qs.filter(user__uuid=user_uuid)
+
+        elif _is_artist(request.user) and request.query_params.get('artist'):
+            qs = Order.objects.select_related('user').prefetch_related('items').all()
+
         else:
             qs = Order.objects.filter(user=request.user).prefetch_related('items')
 
@@ -154,7 +162,7 @@ class OrderDetailView(APIView):
         responses={200: OrderSerializer},
     )
     def get(self, request, uuid):
-        if _is_manager(request.user):
+        if _is_manager(request.user) or _is_artist(request.user):
             order = get_object_or_404(Order.objects.prefetch_related('items'), uuid=uuid)
         else:
             order = get_object_or_404(Order.objects.prefetch_related('items'), uuid=uuid, user=request.user)

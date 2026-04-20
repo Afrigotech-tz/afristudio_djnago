@@ -65,6 +65,9 @@ urlpatterns = [
 
     # Security — blocked IPs, rate-limit violations, performance stats
     path('api/security/', include('apps.security.urls')),
+
+    # Notification logs
+    path('api/notifications/', include('apps.notifications.urls')),
 ]
 
 # Serve media files in development
