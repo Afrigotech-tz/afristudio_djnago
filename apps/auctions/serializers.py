@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from django.utils import timezone
+from django.utils import timezone  # noqa: F401 — used in ExtendAuctionSerializer
 from drf_spectacular.utils import extend_schema_field
 from .models import Auction, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation
 
@@ -97,6 +97,16 @@ class UpdateAuctionSerializer(serializers.Serializer):
         if st and et and et <= st:
             raise serializers.ValidationError('end_time must be after start_time.')
         return data
+
+
+class ExtendAuctionSerializer(serializers.Serializer):
+    end_time      = serializers.DateTimeField()
+    bid_increment = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'), required=False)
+
+    def validate_end_time(self, value):
+        if self.instance and value <= timezone.now():
+            raise serializers.ValidationError('New end time must be in the future.')
+        return value
 
 
 class PlaceBidSerializer(serializers.Serializer):

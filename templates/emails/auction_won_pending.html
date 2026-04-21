@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You Won — Complete Your Payment</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f4f4f4; padding-bottom: 40px; }
+        .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #333333; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .header { background-color: #1a1a1a; padding: 0; text-align: center; }
+        .content { padding: 40px 30px; text-align: center; line-height: 1.6; }
+        .content h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 20px; }
+        .highlight-box { background-color: #fff9e6; border: 2px solid #d4af37; display: inline-block; padding: 20px 40px; margin: 25px 0; border-radius: 10px; }
+        .artwork-name { font-size: 22px; font-weight: bold; color: #1a1a1a; }
+        .amount { font-size: 28px; font-weight: bold; color: #d4af37; margin-top: 8px; }
+        .deadline-box { background-color: #fff5f5; border: 2px solid #feb2b2; padding: 16px 24px; border-radius: 10px; margin: 20px 0; display: inline-block; }
+        .deadline-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .deadline-value { font-size: 18px; font-weight: bold; color: #c53030; }
+        .cta-btn { display: inline-block; background-color: #d4af37; color: #1a1a1a; text-decoration: none; font-weight: bold; font-size: 15px; padding: 14px 36px; border-radius: 8px; margin: 20px 0; }
+        .warning { font-size: 13px; color: #888; margin-top: 10px; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #888888; background-color: #f9f9f9; }
+        .footer a { color: #d4af37; text-decoration: none; }
+        @media screen and (max-width: 600px) { .main { width: 95% !important; } }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" width="100%">
+            {% include 'emails/_logo_header.html' %}
+            <tr>
+                <td class="content">
+                    <h1>🎉 Congratulations, You Won!</h1>
+                    <p>Hello <strong>{{ name }}</strong>,</p>
+                    <p>You are the winning bidder for the following artwork:</p>
+
+                    <div class="highlight-box">
+                        <div class="artwork-name">{{ artwork_name }}</div>
+                        <div class="amount">{{ amount }} {{ currency }}</div>
+                    </div>
+
+                    <p>The item has been added to your cart. Please complete your payment before the deadline below to secure your win.</p>
+
+                    <div class="deadline-box">
+                        <div class="deadline-label">Payment Deadline</div>
+                        <div class="deadline-value">{{ deadline }}</div>
+                    </div>
+
+                    <a href="https://www.afristudio.site/dashboard/cart" class="cta-btn">Go to Cart &amp; Pay Now</a>
+
+                    <p class="warning">
+                        If payment is not received by the deadline, your win will be forfeited and the artwork will be relisted for bidding.
+                    </p>
+
+                    <p>Thank you for being part of the Afristudio community!</p>
+                </td>
+            </tr>
+            <tr>
+                <td class="footer">
+                    <p>&copy; {% now "Y" %} Afristudio. All rights reserved.</p>
+                    <p>Secure Auction Systems | <a href="https://www.afristudio.site">www.afristudio.site</a></p>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>

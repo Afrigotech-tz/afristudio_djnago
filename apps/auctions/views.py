@@ -28,7 +28,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import Auction, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation, close_auction
 from .serializers import (
-    AuctionSerializer, CreateAuctionSerializer, UpdateAuctionSerializer,
+    AuctionSerializer, CreateAuctionSerializer, UpdateAuctionSerializer, ExtendAuctionSerializer,
     PlaceBidSerializer, BidSerializer,
     AuctionConfigSerializer, AuctionWinnerSerializer, AuctionPaymentViolationSerializer,
 )
@@ -136,8 +136,34 @@ class AuctionDetailView(APIView):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied()
         auction = self._get_auction(uuid)
+
+        if auction.status == Auction.STATUS_LIVE:
+            # Live auctions: only end_time and bid_increment can be changed
+            serializer = ExtendAuctionSerializer(auction, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            for field, value in serializer.validated_data.items():
+                setattr(auction, field, value)
+            update_fields = list(serializer.validated_data.keys()) + ['updated_at']
+            auction.save(update_fields=update_fields)
+            log_activity(
+                user=request.user, subject=auction,
+                description=f'Updated live auction for "{auction.artwork.name}" — new end: {auction.end_time}',
+                log_name='auctions', event='auction_extended',
+            )
+            _broadcast(auction.uuid, {
+                'event': 'auction_extended',
+                'auction_uuid': str(auction.uuid),
+                'end_time': auction.end_time.isoformat(),
+                'bid_increment': str(auction.bid_increment),
+            })
+            auction.refresh_from_db()
+            return Response(AuctionSerializer(auction, context={'request': request}).data)
+
         if auction.status != Auction.STATUS_PENDING:
-            return Response({'message': 'Only pending auctions can be edited.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {'message': 'Cancelled auctions cannot be edited.'},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         serializer = UpdateAuctionSerializer(auction, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         for field, value in serializer.validated_data.items():
