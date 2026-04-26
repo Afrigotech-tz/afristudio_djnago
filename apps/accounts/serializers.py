@@ -37,6 +37,19 @@ class UserSerializer(serializers.ModelSerializer):
 # ──────────────────────────────────────────────
 # Register  (replaces validation in AuthController::register)
 # ──────────────────────────────────────────────
+def _normalize_phone(value: str | None) -> str | None:
+    """Strip whitespace/formatting and ensure E.164 prefix."""
+    if not value:
+        return None
+    import re
+    cleaned = re.sub(r'[\s\-().]+', '', value)
+    if cleaned and not cleaned.startswith('+'):
+        cleaned = '+' + cleaned
+    if len(cleaned) < 7 or len(cleaned) > 16:
+        return None
+    return cleaned
+
+
 class RegisterSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
@@ -45,7 +58,7 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         email = attrs.get('email') or None
-        phone = attrs.get('phone') or None
+        phone = _normalize_phone(attrs.get('phone'))
 
         if not email and not phone:
             raise serializers.ValidationError(
@@ -142,7 +155,7 @@ class UpdateUserSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
-        value = value or None
+        value = _normalize_phone(value)
         if value:
             qs = User.objects.filter(phone=value)
             if self.instance:

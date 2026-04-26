@@ -47,6 +47,7 @@ LOCAL_APPS = [
     'apps.auctions',
     'apps.cart',
     'apps.orders',
+    'apps.payments',
     'apps.site_config',
     'apps.reports',
     'apps.security',

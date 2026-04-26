@@ -54,6 +54,9 @@ urlpatterns = [
     # Orders & delivery
     path('api/orders/', include('apps.orders.urls')),
 
+    # Payments
+    path('api/payments/', include('apps.payments.urls')),
+
     # Admin management (roles, permissions, all content)
     path('api/admin/', include((admin_urlpatterns + wallet_admin_urlpatterns, 'admin_api'))),
 

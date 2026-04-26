@@ -39,6 +39,8 @@ class Order(models.Model):
 
     # Delivery details — blank/null allowed so auction-won orders can be created
     # before the winner fills in their shipping address.
+    payment_channel = models.CharField(max_length=30, blank=True, default='')
+
     delivery_name = models.CharField(max_length=255, blank=True, default='')
     delivery_phone = models.CharField(max_length=30, blank=True, default='')
     delivery_address = models.TextField(blank=True, default='')
