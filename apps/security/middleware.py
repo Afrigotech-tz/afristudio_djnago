@@ -15,6 +15,10 @@ def _get_client_ip(request):
     return request.META.get('REMOTE_ADDR', '0.0.0.0')
 
 
+def _is_local_ip(ip):
+    return ip in ('127.0.0.1', '::1', 'localhost')
+
+
 class IPSecurityMiddleware:
     """
     Two-layer security:
@@ -45,10 +49,11 @@ class IPSecurityMiddleware:
 
     def __call__(self, request):
         path = request.path
-        skip = path.startswith('/static/') or path.startswith('/media/')
+        ip = _get_client_ip(request)
+        local_dev_request = getattr(settings, 'SECURITY_TRUST_LOCALHOST', False) and _is_local_ip(ip)
+        skip = path.startswith('/static/') or path.startswith('/media/') or local_dev_request
 
         if not skip:
-            ip  = _get_client_ip(request)
             sig = compute_device_signature(request)
             ua  = request.META.get('HTTP_USER_AGENT', '')[:500]
 
@@ -77,7 +82,7 @@ class IPSecurityMiddleware:
                     status=429,
                 )
         else:
-            request.client_ip        = _get_client_ip(request)
+            request.client_ip        = ip
             request.device_signature = ''
 
         start = time.monotonic()

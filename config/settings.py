@@ -10,7 +10,8 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG_VALUE = str(config('DEBUG', default=True)).strip().lower()
+DEBUG = DEBUG_VALUE not in ('0', 'false', 'no', 'off', 'release', 'production', 'prod')
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
@@ -239,6 +240,8 @@ SECURITY_RATE_LIMIT_REQUESTS = config('SECURITY_RATE_LIMIT_REQUESTS', default=12
 SECURITY_RATE_LIMIT_WINDOW   = config('SECURITY_RATE_LIMIT_WINDOW',   default=60,  cast=int)
 # Auto-block after this many rate-limit violations
 SECURITY_AUTO_BLOCK_THRESHOLD = config('SECURITY_AUTO_BLOCK_THRESHOLD', default=10, cast=int)
+# Keep local Vite/React development from auto-blocking your own browser.
+SECURITY_TRUST_LOCALHOST = config('SECURITY_TRUST_LOCALHOST', default=DEBUG, cast=bool)
 
 # ──────────────────────────────────────────────
 # drf-spectacular  (OpenAPI 3 / Swagger / ReDoc)
@@ -288,6 +291,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@afristudio.com')

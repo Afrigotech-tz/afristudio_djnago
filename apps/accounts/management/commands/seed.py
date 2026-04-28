@@ -24,4 +24,7 @@ class Command(BaseCommand):
         self.stdout.write('Seeding users ...')
         call_command('seed_users')
 
+        self.stdout.write('Seeding payment methods ...')
+        call_command('seed_payment_methods')
+
         self.stdout.write(self.style.SUCCESS('\nAll seeders completed successfully.'))

@@ -5,6 +5,7 @@ Equivalent to Laravel's AuthController + ProfileController.
 
 import random
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import serializers as drf_serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -25,6 +26,7 @@ from .models import Profile
 from .serializers import (
     RegisterSerializer,
     VerifyAccountSerializer,
+    ResendVerificationSerializer,
     LoginSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
@@ -193,6 +195,67 @@ class VerifyAccountView(APIView):
         )
 
         return Response({'message': 'Account activated. You can now bid!', 'user': UserSerializer(user).data})
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=['Auth'],
+        summary='Resend account verification OTP',
+        description='Generates and sends a fresh 6-digit verification code for an unverified account.',
+        request=ResendVerificationSerializer,
+        responses={
+            200: OpenApiResponse(response=_MessageSchema, description='Verification code sent.'),
+            404: OpenApiResponse(description='Account not found.'),
+            422: OpenApiResponse(description='Account is already verified.'),
+            429: OpenApiResponse(description='Please wait before requesting another code.'),
+        },
+        examples=[
+            OpenApiExample(
+                'Resend by email',
+                request_only=True,
+                value={'identifier': 'jane@example.com'},
+            ),
+        ],
+    )
+    def post(self, request):
+        serializer = ResendVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        identifier = serializer.validated_data['identifier']
+
+        user = User.objects.filter(email=identifier).first() \
+            or User.objects.filter(phone=identifier).first()
+
+        if not user:
+            return Response({'message': 'Account not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.verified_at:
+            return Response({'message': 'This account is already verified.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        cooldown_key = f'verification_resend:{user.pk}'
+        if cache.get(cooldown_key):
+            return Response(
+                {'message': 'Please wait a minute before requesting another code.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        code = str(random.randint(100000, 999999))
+        user.verification_code = code
+        user.save(update_fields=['verification_code', 'updated_at'])
+        cache.set(cooldown_key, True, 60)
+
+        dispatch_verification_otp(user.pk, code)
+        channel = 'email' if user.email else 'phone'
+
+        log_activity(
+            user=user,
+            description='Verification code resent',
+            log_name='auth',
+            event='verification_code_resent',
+        )
+
+        return Response({'message': f'A new verification code has been sent to your {channel}.'})
 
 
 class LoginView(APIView):
