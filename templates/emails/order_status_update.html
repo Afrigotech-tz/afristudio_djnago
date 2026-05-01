@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status Update</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f4f4f4; padding-bottom: 40px; }
+        .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #333333; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .content { padding: 40px 30px; text-align: center; line-height: 1.6; }
+        .content h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 8px; }
+        .status-badge { display: inline-block; background-color: #fef3c7; color: #92400e; border-radius: 20px; padding: 6px 20px; font-size: 15px; font-weight: 700; margin: 16px 0; letter-spacing: 0.5px; }
+        .status-badge.confirmed { background-color: #d1fae5; color: #065f46; }
+        .status-badge.shipped    { background-color: #dbeafe; color: #1e40af; }
+        .status-badge.delivered  { background-color: #d1fae5; color: #065f46; }
+        .status-badge.cancelled  { background-color: #fee2e2; color: #991b1b; }
+        .order-box { background-color: #f9f9f9; border: 1px solid #e0e0e0; padding: 16px 24px; margin: 16px 0; border-radius: 8px; text-align: left; }
+        .note-box { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: 4px; text-align: left; font-size: 14px; color: #78350f; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #888888; background-color: #f9f9f9; }
+        .footer a { color: #d4af37; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" width="100%">
+            {% include 'emails/_logo_header.html' %}
+            <tr>
+                <td class="content">
+                    <h1>Order Status Update</h1>
+                    <p>Hello <strong>{{ name }}</strong>,</p>
+                    <p>Your order status has been updated:</p>
+
+                    <div class="status-badge {{ new_status|lower }}">{{ new_status }}</div>
+
+                    <div class="order-box">
+                        <p><strong>Order #:</strong> {{ order_id }}</p>
+                        <p><strong>Previous status:</strong> {{ old_status }}</p>
+                        <p><strong>New status:</strong> {{ new_status }}</p>
+                    </div>
+
+                    {% if note %}
+                    <div class="note-box">
+                        <strong>Note from our team:</strong><br>{{ note }}
+                    </div>
+                    {% endif %}
+
+                    <p>You can track your order progress in your dashboard.</p>
+                </td>
+            </tr>
+            <tr>
+                <td class="footer">
+                    <p>&copy; {{ year }} Afristudio. All rights reserved.</p>
+                    <p><a href="https://www.afristudio.site">www.afristudio.site</a></p>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>

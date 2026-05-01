@@ -2,7 +2,23 @@ from decimal import Decimal
 from rest_framework import serializers
 from django.utils import timezone  # noqa: F401 — used in ExtendAuctionSerializer
 from drf_spectacular.utils import extend_schema_field
-from .models import Auction, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation
+from drf_spectacular.openapi import OpenApiTypes
+from .models import Auction, AuctionImage, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation
+
+
+class AuctionImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuctionImage
+        fields = ['id', 'image_url', 'is_primary', 'order', 'created_at']
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
 
 
 class BidSerializer(serializers.ModelSerializer):
@@ -25,11 +41,14 @@ class AuctionSerializer(serializers.ModelSerializer):
     unique_bidders   = serializers.SerializerMethodField()
     payment_status   = serializers.SerializerMethodField()
     payment_deadline = serializers.SerializerMethodField()
+    images           = serializers.SerializerMethodField()
+    primary_image    = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
         fields = [
             'uuid', 'artwork_uuid', 'artwork_name', 'artwork_image',
+            'images', 'primary_image',
             'created_by_name', 'start_price', 'reserve_price',
             'current_price', 'bid_increment', 'minimum_next_bid',
             'currency', 'start_time', 'end_time', 'status',
@@ -52,6 +71,25 @@ class AuctionSerializer(serializers.ModelSerializer):
             return 0
         delta = obj.end_time - timezone.now()
         return max(int(delta.total_seconds()), 0)
+
+    @extend_schema_field(AuctionImageSerializer(many=True))
+    def get_images(self, obj):
+        qs = obj.images.all()
+        return AuctionImageSerializer(qs, many=True, context=self.context).data
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_primary_image(self, obj):
+        primary = obj.images.filter(is_primary=True).first()
+        if primary and primary.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(primary.image.url)
+        # Fall back to artwork image if no dedicated primary
+        if obj.artwork.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.artwork.image.url)
+        return None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_payment_status(self, obj):

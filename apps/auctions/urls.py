@@ -3,6 +3,7 @@ from .views import (
     AuctionListCreateView, AuctionDetailView, AuctionStartView, AuctionEndView,
     PlaceBidView, AuctionConfigView, AuctionWinnersView, AuctionWinnerMarkPaidView,
     AuctionViolationsView, AuctionViolationBanView,
+    AuctionImageListCreateView, AuctionImageDetailView,
 )
 
 urlpatterns = [
@@ -11,6 +12,11 @@ urlpatterns = [
     path('<uuid:uuid>/start/', AuctionStartView.as_view(), name='auction-start'),
     path('<uuid:uuid>/end/', AuctionEndView.as_view(), name='auction-end'),
     path('<uuid:uuid>/bid/', PlaceBidView.as_view(), name='auction-bid'),
+
+    # Images
+    path('<uuid:uuid>/images/', AuctionImageListCreateView.as_view(), name='auction-images'),
+    path('<uuid:uuid>/images/<int:pk>/', AuctionImageDetailView.as_view(), name='auction-image-detail'),
+    path('<uuid:uuid>/images/<int:pk>/set-primary/', AuctionImageDetailView.as_view(), name='auction-image-set-primary'),
 
     # Admin: configuration
     path('config/', AuctionConfigView.as_view(), name='auction-config'),

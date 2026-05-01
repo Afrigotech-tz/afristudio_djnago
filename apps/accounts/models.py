@@ -102,8 +102,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         group, _ = Group.objects.get_or_create(name=role_name)
         self.groups.add(group)
 
+    _APP_LABELS = {
+        'accounts', 'artworks', 'auctions', 'orders', 'cart',
+        'wallet', 'currencies', 'site_config', 'security',
+        'notifications', 'activity_logs', 'payments',
+    }
+
     def get_all_permissions_list(self):
-        return list(self.get_all_permissions())
+        return [
+            p for p in self.get_all_permissions()
+            if p.split('.')[0] in self._APP_LABELS
+        ]
 
 
 # ──────────────────────────────────────────────

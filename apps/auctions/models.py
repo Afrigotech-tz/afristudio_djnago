@@ -82,6 +82,29 @@ class Auction(models.Model):
         return False
 
 
+# ─── AuctionImage ─────────────────────────────────────────────────────────────
+
+class AuctionImage(models.Model):
+    auction    = models.ForeignKey(Auction, on_delete=models.CASCADE, related_name='images')
+    image      = models.ImageField(upload_to='auction_images/')
+    is_primary = models.BooleanField(default=False, db_index=True)
+    order      = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'auction_images'
+        ordering = ['-is_primary', 'order', 'created_at']
+
+    def __str__(self):
+        return f"Image for {self.auction} (primary={self.is_primary})"
+
+    def save(self, *args, **kwargs):
+        # If this image is being set as primary, demote all others
+        if self.is_primary:
+            AuctionImage.objects.filter(auction=self.auction, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
 # ─── Bid ──────────────────────────────────────────────────────────────────────
 
 class Bid(models.Model):

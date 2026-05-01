@@ -64,3 +64,22 @@ class Artwork(models.Model):
             'currency': currency_code,
             'symbol': symbol,
         }
+
+
+class ArtworkImage(models.Model):
+    artwork    = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name='images')
+    image      = models.ImageField(upload_to='artwork_images/')
+    is_primary = models.BooleanField(default=False, db_index=True)
+    order      = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'artwork_images'
+        ordering = ['-is_primary', 'order', 'created_at']
+
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            ArtworkImage.objects.filter(
+                artwork=self.artwork, is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)

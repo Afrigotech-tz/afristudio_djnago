@@ -111,13 +111,24 @@ class RoleDetailView(APIView):
 
 # ─── Permissions ─────────────────────────────────────────────────────────────
 
+_APP_PERMISSION_LABELS = {
+    'accounts', 'artworks', 'auctions', 'orders', 'cart',
+    'wallet', 'currencies', 'site_config', 'security',
+    'notifications', 'activity_logs', 'payments',
+}
+
 class PermissionListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrStaff]
 
     @extend_schema(tags=['Admin — Roles'], summary='List all available permissions',
                    responses={200: PermissionSerializer(many=True)})
     def get(self, request):
-        perms = Permission.objects.select_related('content_type').order_by('content_type__app_label', 'codename')
+        perms = (
+            Permission.objects
+            .select_related('content_type')
+            .filter(content_type__app_label__in=_APP_PERMISSION_LABELS)
+            .order_by('content_type__app_label', 'codename')
+        )
         return Response(PermissionSerializer(perms, many=True).data)
 
 

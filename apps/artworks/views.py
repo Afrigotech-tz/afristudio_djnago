@@ -5,6 +5,7 @@ UUID-based lookup mirrors Laravel's route model binding on uuid.
 """
 
 from django.db.models import Count
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, serializers as drf_serializers, filters
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
@@ -20,11 +21,12 @@ from drf_spectacular.utils import (
 from drf_spectacular.types import OpenApiTypes
 
 from apps.activity_logs.utils import log_activity
-from .models import Category, Artwork
+from .models import Category, Artwork, ArtworkImage
 from .serializers import (
     CategorySerializer,
     StoreCategorySerializer,
     ArtworkSerializer,
+    ArtworkImageSerializer,
     StoreArtworkSerializer,
     UpdateArtworkSerializer,
 )
@@ -271,7 +273,7 @@ class ArtworkListCreateView(generics.ListCreateAPIView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = Artwork.objects.select_related('category')
+        qs = Artwork.objects.select_related('category').prefetch_related('images')
 
         category_uuid = self.request.query_params.get('category_uuid')
         is_sold = self.request.query_params.get('is_sold')
@@ -306,7 +308,12 @@ class ArtworkListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        artwork = Artwork.objects.select_related('category').get(name=serializer.instance.name, pk=serializer.instance.pk)
+        artwork = (
+            Artwork.objects
+            .select_related('category')
+            .prefetch_related('images')
+            .get(pk=serializer.instance.pk)
+        )
         return Response(
             ArtworkSerializer(artwork, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
@@ -376,7 +383,7 @@ class ArtworkDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT    /api/artworks/<uuid>/   → update (auth required)
     DELETE /api/artworks/<uuid>/   → destroy (auth required)
     """
-    queryset = Artwork.objects.select_related('category')
+    queryset = Artwork.objects.select_related('category').prefetch_related('images')
     lookup_field = 'uuid'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
@@ -421,3 +428,85 @@ class ArtworkDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ──────────────────────────────────────────────────────────
+# Artwork Image Views
+# ──────────────────────────────────────────────────────────
+
+class ArtworkImageListCreateView(generics.GenericAPIView):
+    """
+    GET  /api/artworks/<uuid>/images/  → list images (public)
+    POST /api/artworks/<uuid>/images/  → upload image (auth required)
+    """
+    parser_classes = [MultiPartParser, FormParser]
+
+    def _get_artwork(self, uuid):
+        return get_object_or_404(Artwork, uuid=uuid)
+
+    def get(self, request, uuid):
+        artwork = self._get_artwork(uuid)
+        images = artwork.images.all()
+        serializer = ArtworkImageSerializer(images, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request, uuid):
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        artwork = self._get_artwork(uuid)
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({'image': 'This field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_primary_str = request.data.get('is_primary', 'false')
+        is_primary = is_primary_str.lower() in ('true', '1') if isinstance(is_primary_str, str) else bool(is_primary_str)
+
+        # Auto-set as primary if it's the first image
+        if not artwork.images.exists():
+            is_primary = True
+
+        order = artwork.images.count()
+        img = ArtworkImage.objects.create(
+            artwork=artwork,
+            image=image_file,
+            is_primary=is_primary,
+            order=order,
+        )
+        return Response(
+            ArtworkImageSerializer(img, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ArtworkImageDetailView(generics.GenericAPIView):
+    """
+    DELETE /api/artworks/<uuid>/images/<pk>/              → delete image
+    PATCH  /api/artworks/<uuid>/images/<pk>/set-primary/  → set as primary
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_image(self, uuid, pk):
+        return get_object_or_404(ArtworkImage, pk=pk, artwork__uuid=uuid)
+
+    def delete(self, request, uuid, pk):
+        img = self._get_image(uuid, pk)
+        was_primary = img.is_primary
+        img.image.delete(save=False)
+        img.delete()
+
+        if was_primary:
+            next_img = ArtworkImage.objects.filter(artwork__uuid=uuid).first()
+            if next_img:
+                next_img.is_primary = True
+                next_img.save(update_fields=['is_primary'])
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def patch(self, request, uuid, pk):
+        img = self._get_image(uuid, pk)
+        img.is_primary = True
+        img.save()
+        return Response(
+            ArtworkImageSerializer(img, context={'request': request}).data
+        )

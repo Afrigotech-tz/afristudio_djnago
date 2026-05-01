@@ -59,6 +59,24 @@ class Order(models.Model):
         return f"Order #{self.id} by {self.user} [{self.status}]"
 
 
+class OrderStatusHistory(models.Model):
+    order      = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='status_history')
+    status     = models.CharField(max_length=20, choices=Order.STATUS_CHOICES)
+    note       = models.TextField(blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='order_status_changes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'order_status_history'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Order #{self.order_id} → {self.status}"
+
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     artwork = models.ForeignKey(

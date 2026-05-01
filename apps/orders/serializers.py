@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Order, OrderItem
+from .models import Order, OrderItem, OrderStatusHistory
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -8,20 +8,30 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'artwork_name', 'price', 'currency']
 
 
+class OrderStatusHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.CharField(source='changed_by.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = OrderStatusHistory
+        fields = ['id', 'status', 'note', 'changed_by_name', 'created_at']
+
+
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, read_only=True)
-    buyer_name  = serializers.SerializerMethodField()
-    buyer_email = serializers.SerializerMethodField()
-    buyer_uuid  = serializers.SerializerMethodField()
+    items          = OrderItemSerializer(many=True, read_only=True)
+    status_history = OrderStatusHistorySerializer(many=True, read_only=True)
+    buyer_name     = serializers.SerializerMethodField()
+    buyer_email    = serializers.SerializerMethodField()
+    buyer_uuid     = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
-            'uuid', 'status', 'total', 'currency', 'items',
+            'uuid', 'status', 'total', 'currency', 'payment_channel',
+            'items', 'status_history',
             'delivery_name', 'delivery_phone', 'delivery_address',
             'delivery_city', 'delivery_country', 'notes',
             'buyer_name', 'buyer_email', 'buyer_uuid',
-            'created_at',
+            'created_at', 'updated_at',
         ]
 
     def get_buyer_name(self, obj):
@@ -45,3 +55,4 @@ class CheckoutSerializer(serializers.Serializer):
 
 class UpdateOrderStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Order.STATUS_CHOICES)
+    note   = serializers.CharField(required=False, allow_blank=True, default='')

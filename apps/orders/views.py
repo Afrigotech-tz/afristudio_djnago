@@ -19,7 +19,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
-from .models import Order, OrderItem
+from .models import Order, OrderItem, OrderStatusHistory
 from .serializers import OrderSerializer, CheckoutSerializer, UpdateOrderStatusSerializer
 from apps.cart.models import Cart, CartItem
 from apps.activity_logs.utils import log_activity
@@ -83,6 +83,14 @@ class CheckoutView(APIView):
 
             items.delete()
 
+            # Record initial status in history
+            OrderStatusHistory.objects.create(
+                order=order,
+                status=Order.STATUS_PENDING,
+                changed_by=request.user,
+                note='Order placed',
+            )
+
         notify_async(
             user_id=request.user.pk,
             subject='Your Afristudio order has been placed',
@@ -128,8 +136,9 @@ class OrderListView(APIView):
         responses={200: OrderSerializer(many=True)},
     )
     def get(self, request):
+        prefetch = ['items', 'status_history__changed_by']
         if _is_manager(request.user):
-            qs = Order.objects.select_related('user').prefetch_related('items').all()
+            qs = Order.objects.select_related('user').prefetch_related(*prefetch).all()
 
             status_filter = request.query_params.get('status')
             if status_filter:
@@ -144,10 +153,10 @@ class OrderListView(APIView):
                 qs = qs.filter(user__uuid=user_uuid)
 
         elif _is_artist(request.user) and request.query_params.get('artist'):
-            qs = Order.objects.select_related('user').prefetch_related('items').all()
+            qs = Order.objects.select_related('user').prefetch_related(*prefetch).all()
 
         else:
-            qs = Order.objects.filter(user=request.user).prefetch_related('items')
+            qs = Order.objects.filter(user=request.user).prefetch_related(*prefetch)
 
         return Response(OrderSerializer(qs, many=True).data)
 
@@ -162,10 +171,11 @@ class OrderDetailView(APIView):
         responses={200: OrderSerializer},
     )
     def get(self, request, uuid):
+        prefetch = ['items', 'status_history__changed_by']
         if _is_manager(request.user) or _is_artist(request.user):
-            order = get_object_or_404(Order.objects.prefetch_related('items'), uuid=uuid)
+            order = get_object_or_404(Order.objects.prefetch_related(*prefetch), uuid=uuid)
         else:
-            order = get_object_or_404(Order.objects.prefetch_related('items'), uuid=uuid, user=request.user)
+            order = get_object_or_404(Order.objects.prefetch_related(*prefetch), uuid=uuid, user=request.user)
         return Response(OrderSerializer(order).data)
 
 
@@ -179,27 +189,55 @@ class OrderStatusUpdateView(APIView):
         responses={200: OrderSerializer},
     )
     def put(self, request, uuid):
-        order = get_object_or_404(Order.objects.select_related('user'), uuid=uuid)
+        order = get_object_or_404(
+            Order.objects.select_related('user').prefetch_related('items', 'status_history__changed_by'),
+            uuid=uuid,
+        )
         serializer = UpdateOrderStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         old_status = order.status
         new_status = serializer.validated_data['status']
+        note       = serializer.validated_data.get('note', '')
+
         order.status = new_status
         order.save(update_fields=['status', 'updated_at'])
 
+        OrderStatusHistory.objects.create(
+            order=order,
+            status=new_status,
+            changed_by=request.user,
+            note=note,
+        )
+
+        STATUS_LABELS = {
+            'confirmed': 'confirmed and is being prepared',
+            'shipped':   'on its way to you',
+            'delivered': 'delivered',
+            'cancelled': 'cancelled',
+        }
+        status_msg = STATUS_LABELS.get(new_status, f'updated to {new_status}')
+
         notify_async(
             user_id=order.user.pk,
-            subject=f'Order #{order.id} — status updated to {order.get_status_display()}',
+            subject=f'Order #{order.id} — {order.get_status_display()}',
             message=(
-                f'Hi {order.user.name}, your order #{order.id} status has changed '
-                f'from {old_status} to {new_status}.'
+                f'Hi {order.user.name}, your order #{order.id} is now {status_msg}.'
+                + (f'\n\nNote: {note}' if note else '')
             ),
+            template='emails/order_status_update.html',
+            context={
+                'name':       order.user.name,
+                'order_id':   order.id,
+                'old_status': old_status.title(),
+                'new_status': new_status.title(),
+                'note':       note,
+            },
         )
         log_activity(
             user=request.user,
             subject=order,
-            description=f'Order #{order.id} status: {old_status} → {new_status}',
+            description=f'Order #{order.id} status: {old_status} → {new_status}' + (f' — {note}' if note else ''),
             log_name='orders',
             event='order_status_updated',
         )

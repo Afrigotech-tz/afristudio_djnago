@@ -6,7 +6,7 @@ Equivalent to Laravel's ArtworkResource + CategoryResource + Form Requests.
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Artwork
+from .models import Category, Artwork, ArtworkImage
 
 
 # ──────────────────────────────────────────────
@@ -38,18 +38,40 @@ class StoreCategorySerializer(serializers.ModelSerializer):
 
 
 # ──────────────────────────────────────────────
+# ArtworkImage
+# ──────────────────────────────────────────────
+class ArtworkImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ArtworkImage
+        fields = ['id', 'image_url', 'is_primary', 'order', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+
+# ──────────────────────────────────────────────
 # Artwork  (replaces ArtworkResource)
 # ──────────────────────────────────────────────
 class ArtworkSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    pricing = serializers.SerializerMethodField()
-    image_url = serializers.SerializerMethodField()
+    category      = CategorySerializer(read_only=True)
+    pricing       = serializers.SerializerMethodField()
+    image_url     = serializers.SerializerMethodField()
+    images        = serializers.SerializerMethodField()
+    primary_image = serializers.SerializerMethodField()
 
     class Meta:
         model = Artwork
         fields = [
             'uuid', 'name', 'dimensions', 'category',
-            'pricing', 'image_url', 'is_sold', 'created_at',
+            'pricing', 'image_url', 'images', 'primary_image',
+            'is_sold', 'created_at',
         ]
 
     @extend_schema_field(
@@ -57,7 +79,6 @@ class ArtworkSerializer(serializers.ModelSerializer):
     )
     def get_pricing(self, obj):
         request = self.context.get('request')
-        # Currency from ?currency=TZS query param (mirrors Laravel's ArtworkResource)
         currency_code = 'USD'
         if request:
             currency_code = (
@@ -82,6 +103,22 @@ class ArtworkSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.URI)
     def get_image_url(self, obj):
         request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+    @extend_schema_field(serializers.ListField())
+    def get_images(self, obj):
+        images = obj.images.all()
+        return ArtworkImageSerializer(images, many=True, context=self.context).data
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_primary_image(self, obj):
+        request = self.context.get('request')
+        images = list(obj.images.all())  # uses prefetch cache
+        primary = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
+        if primary and primary.image and request:
+            return request.build_absolute_uri(primary.image.url)
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return None

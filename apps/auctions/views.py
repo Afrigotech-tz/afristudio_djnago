@@ -26,9 +26,10 @@ from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnl
 from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from .models import Auction, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation, close_auction
+from .models import Auction, AuctionImage, Bid, AuctionConfig, AuctionWinner, AuctionPaymentViolation, close_auction
 from .serializers import (
-    AuctionSerializer, CreateAuctionSerializer, UpdateAuctionSerializer, ExtendAuctionSerializer,
+    AuctionSerializer, AuctionImageSerializer,
+    CreateAuctionSerializer, UpdateAuctionSerializer, ExtendAuctionSerializer,
     PlaceBidSerializer, BidSerializer,
     AuctionConfigSerializer, AuctionWinnerSerializer, AuctionPaymentViolationSerializer,
 )
@@ -56,7 +57,7 @@ class AuctionListCreateView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request):
-        qs = Auction.objects.select_related('artwork', 'created_by', 'winner').all()
+        qs = Auction.objects.select_related('artwork', 'created_by', 'winner').prefetch_related('images').all()
         status_filter = request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
@@ -119,7 +120,7 @@ class AuctionDetailView(APIView):
 
     def _get_auction(self, uuid):
         return get_object_or_404(
-            Auction.objects.select_related('artwork', 'created_by', 'winner'),
+            Auction.objects.select_related('artwork', 'created_by', 'winner').prefetch_related('images'),
             uuid=uuid,
         )
 
@@ -494,3 +495,86 @@ class AuctionViolationBanView(APIView):
             'bidding_suspended': total >= config.max_violations,
             'max_violations': config.max_violations,
         })
+
+
+# ── Auction Images ─────────────────────────────────────────────────────────────
+
+class AuctionImageListCreateView(APIView):
+    """
+    GET  /api/auctions/<uuid>/images/   — list images
+    POST /api/auctions/<uuid>/images/   — upload a new image (multipart)
+    """
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def _get_auction(self, uuid):
+        return get_object_or_404(Auction, uuid=uuid)
+
+    def get(self, request, uuid):
+        auction = self._get_auction(uuid)
+        images = auction.images.all()
+        return Response(AuctionImageSerializer(images, many=True, context={'request': request}).data)
+
+    def post(self, request, uuid):
+        auction = self._get_auction(uuid)
+        if auction.created_by != request.user and not request.user.is_staff:
+            return Response({'message': 'Not allowed.'}, status=status.HTTP_403_FORBIDDEN)
+
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({'message': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_primary = request.data.get('is_primary', 'false').lower() in ('true', '1', 'yes')
+        order = int(request.data.get('order', 0))
+
+        # First image auto-becomes primary if none exists
+        if not auction.images.filter(is_primary=True).exists():
+            is_primary = True
+
+        img = AuctionImage.objects.create(
+            auction=auction,
+            image=image_file,
+            is_primary=is_primary,
+            order=order,
+        )
+        return Response(
+            AuctionImageSerializer(img, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AuctionImageDetailView(APIView):
+    """
+    DELETE /api/auctions/<uuid>/images/<pk>/             — delete image
+    PATCH  /api/auctions/<uuid>/images/<pk>/set-primary/ — set as primary
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_objects(self, uuid, pk, request):
+        auction = get_object_or_404(Auction, uuid=uuid)
+        if auction.created_by != request.user and not request.user.is_staff:
+            return None, None, Response({'message': 'Not allowed.'}, status=status.HTTP_403_FORBIDDEN)
+        img = get_object_or_404(AuctionImage, pk=pk, auction=auction)
+        return auction, img, None
+
+    def delete(self, request, uuid, pk):
+        auction, img, err = self._get_objects(uuid, pk, request)
+        if err:
+            return err
+        was_primary = img.is_primary
+        img.image.delete(save=False)
+        img.delete()
+        # Promote next image to primary if the deleted one was primary
+        if was_primary:
+            next_img = auction.images.first()
+            if next_img:
+                next_img.is_primary = True
+                next_img.save(update_fields=['is_primary'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def patch(self, request, uuid, pk):
+        auction, img, err = self._get_objects(uuid, pk, request)
+        if err:
+            return err
+        img.is_primary = True
+        img.save()  # save() triggers demotion of other primary images
+        return Response(AuctionImageSerializer(img, context={'request': request}).data)
