@@ -213,6 +213,53 @@ class AdminRemoveRoleView(APIView):
         return Response(AdminUserSerializer(user).data)
 
 
+class AdminUserDirectPermissionsView(APIView):
+    """
+    GET  /api/admin/users/<uuid>/permissions/  — list direct (user-level) permissions
+    PUT  /api/admin/users/<uuid>/permissions/  — replace the full set of direct permissions
+    """
+    permission_classes = [IsAuthenticated, IsAdminOrStaff]
+
+    def _get_user(self, uuid):
+        return get_object_or_404(
+            User.objects.prefetch_related('user_permissions__content_type'),
+            uuid=uuid,
+        )
+
+    def get(self, request, uuid):
+        user = self._get_user(uuid)
+        return Response(
+            PermissionSerializer(
+                user.user_permissions.select_related('content_type').all(),
+                many=True,
+            ).data
+        )
+
+    def put(self, request, uuid):
+        user = self._get_user(uuid)
+        perm_ids = request.data.get('permission_ids', [])
+        if not isinstance(perm_ids, list):
+            return Response({'detail': 'permission_ids must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+        perms = Permission.objects.filter(
+            id__in=perm_ids,
+            content_type__app_label__in=_APP_PERMISSION_LABELS,
+        )
+        user.user_permissions.set(perms)
+        log_activity(
+            user=request.user,
+            subject=user,
+            description=f'Updated direct permissions for {user.email or user.name}',
+            log_name='admin',
+            event='user_permissions_updated',
+        )
+        # Re-fetch with M2M relations so the serializer returns fresh data
+        user = get_object_or_404(
+            User.objects.prefetch_related('groups', 'user_permissions__content_type'),
+            uuid=uuid,
+        )
+        return Response(AdminUserSerializer(user).data)
+
+
 class AdminVerifyUserView(APIView):
     """
     POST  /api/admin/users/<uuid>/verify/   — manually mark verified_at = now

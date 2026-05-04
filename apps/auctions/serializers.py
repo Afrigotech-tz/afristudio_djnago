@@ -193,16 +193,23 @@ class AuctionWinnerSerializer(serializers.ModelSerializer):
 # ── AuctionPaymentViolation ───────────────────────────────────────────────────
 
 class AuctionPaymentViolationSerializer(serializers.ModelSerializer):
-    user_name    = serializers.CharField(source='user.name', read_only=True)
-    user_email   = serializers.CharField(source='user.email', read_only=True)
-    artwork_name = serializers.CharField(source='auction_winner.auction.artwork.name', read_only=True)
-    auction_uuid = serializers.UUIDField(source='auction_winner.auction.uuid', read_only=True)
-    bid_amount   = serializers.DecimalField(source='auction_winner.bid_amount', max_digits=15, decimal_places=2, read_only=True)
+    user_name           = serializers.CharField(source='user.name', read_only=True)
+    user_email          = serializers.CharField(source='user.email', read_only=True)
+    user_uuid           = serializers.UUIDField(source='user.uuid', read_only=True)
+    artwork_name        = serializers.CharField(source='auction_winner.auction.artwork.name', read_only=True)
+    auction_uuid        = serializers.UUIDField(source='auction_winner.auction.uuid', read_only=True)
+    bid_amount          = serializers.DecimalField(source='auction_winner.bid_amount', max_digits=15, decimal_places=2, read_only=True)
+    user_banned_until   = serializers.DateTimeField(source='user.bidding_banned_until', read_only=True)
+    user_total_violations = serializers.SerializerMethodField()
 
     class Meta:
         model = AuctionPaymentViolation
         fields = [
-            'id', 'user_name', 'user_email',
+            'id', 'user_uuid', 'user_name', 'user_email',
             'artwork_name', 'auction_uuid', 'bid_amount',
+            'user_banned_until', 'user_total_violations',
             'created_at',
         ]
+
+    def get_user_total_violations(self, obj):
+        return AuctionPaymentViolation.objects.filter(user=obj.user).count()

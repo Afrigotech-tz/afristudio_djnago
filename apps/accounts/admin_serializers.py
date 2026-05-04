@@ -79,10 +79,15 @@ class AssignRoleSerializer(serializers.Serializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    direct_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['uuid', 'name', 'email', 'phone', 'is_staff', 'is_active', 'verified_at', 'roles', 'permissions', 'created_at']
+        fields = [
+            'uuid', 'name', 'email', 'phone', 'is_staff', 'is_active',
+            'verified_at', 'bidding_banned_until',
+            'roles', 'permissions', 'direct_permissions', 'created_at',
+        ]
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_roles(self, obj):
@@ -91,6 +96,13 @@ class AdminUserSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_permissions(self, obj):
         return obj.get_all_permissions_list()
+
+    @extend_schema_field(PermissionSerializer(many=True))
+    def get_direct_permissions(self, obj):
+        return PermissionSerializer(
+            obj.user_permissions.select_related('content_type').all(),
+            many=True,
+        ).data
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):

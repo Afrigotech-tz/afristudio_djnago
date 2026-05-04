@@ -13,10 +13,11 @@ POST   /api/auctions/<uuid>/bid/            — place bid
 GET/PATCH /api/auctions/config/             — payment rules (admin)
 GET       /api/auctions/winners/            — all winner records (admin)
 GET       /api/auctions/violations/         — payment violations (admin)
-POST      /api/auctions/violations/<id>/ban/ — ban violating user (admin)
+POST/DEL  /api/auctions/violations/<id>/ban/ — apply/lift bidding ban (admin)
 """
 
 import json
+from datetime import timedelta
 from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -261,18 +262,26 @@ class PlaceBidView(APIView):
         if auction.winner == request.user:
             return Response({'message': 'You are already the highest bidder.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if user has outstanding unpaid violations → could block bidding
+        # Check persistent bidding ban
         config = AuctionConfig.get_config()
+        now = timezone.now()
+        request.user.refresh_from_db(fields=['bidding_banned_until'])
+        if request.user.bidding_banned_until and request.user.bidding_banned_until > now:
+            until = request.user.bidding_banned_until.strftime('%Y-%m-%d %H:%M UTC')
+            return Response(
+                {'message': f'Your bidding privileges are suspended until {until}. Please contact support.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check violation threshold — auto-apply ban if just crossed
         violation_count = AuctionPaymentViolation.objects.filter(user=request.user).count()
         if violation_count >= config.max_violations:
+            ban_until = now + timedelta(days=config.ban_duration_days)
+            request.user.bidding_banned_until = ban_until
+            request.user.save(update_fields=['bidding_banned_until'])
+            until = ban_until.strftime('%Y-%m-%d %H:%M UTC')
             return Response(
-                {
-                    'message': (
-                        f'Your bidding privileges have been suspended due to '
-                        f'{violation_count} unpaid auction win(s). '
-                        f'Please contact support.'
-                    )
-                },
+                {'message': f'Your bidding has been suspended until {until} due to {violation_count} unpaid win(s).'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -470,31 +479,50 @@ class AuctionViolationsView(APIView):
 
 
 class AuctionViolationBanView(APIView):
-    """Manually ban a user from bidding based on their violations."""
+    """
+    POST   /api/auctions/violations/<pk>/ban/ — apply a timed bidding ban
+    DELETE /api/auctions/violations/<pk>/ban/ — lift the ban
+    """
     permission_classes = [IsAdminUser]
 
     def post(self, request, pk):
-        violation = get_object_or_404(AuctionPaymentViolation, pk=pk)
+        violation = get_object_or_404(AuctionPaymentViolation.objects.select_related('user'), pk=pk)
         user = violation.user
         config = AuctionConfig.get_config()
+        now = timezone.now()
+
+        ban_until = now + timedelta(days=config.ban_duration_days)
+        user.bidding_banned_until = ban_until
+        user.save(update_fields=['bidding_banned_until'])
 
         total = AuctionPaymentViolation.objects.filter(user=user).count()
-
         log_activity(
-            user=request.user, subject=None,
+            user=request.user, subject=user,
             description=(
-                f'Manually reviewed violation for {user.name} — '
-                f'{total} total violation(s). '
-                f'Max allowed: {config.max_violations}.'
+                f'Manually banned {user.name} from bidding until '
+                f'{ban_until.strftime("%Y-%m-%d %H:%M UTC")} '
+                f'({total} violation(s)).'
             ),
-            log_name='auctions', event='violation_reviewed',
+            log_name='auctions', event='user_bid_banned',
         )
         return Response({
             'user': user.name,
             'total_violations': total,
-            'bidding_suspended': total >= config.max_violations,
-            'max_violations': config.max_violations,
+            'bidding_banned_until': ban_until.isoformat(),
         })
+
+    def delete(self, request, pk):
+        violation = get_object_or_404(AuctionPaymentViolation.objects.select_related('user'), pk=pk)
+        user = violation.user
+        user.bidding_banned_until = None
+        user.save(update_fields=['bidding_banned_until'])
+
+        log_activity(
+            user=request.user, subject=user,
+            description=f'Lifted bidding ban for {user.name}.',
+            log_name='auctions', event='user_bid_unbanned',
+        )
+        return Response({'user': user.name, 'bidding_banned_until': None})
 
 
 # ── Auction Images ─────────────────────────────────────────────────────────────

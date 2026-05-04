@@ -12,6 +12,8 @@ Usage:
     python manage.py check_auction_deadlines
 """
 
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -47,6 +49,18 @@ class Command(BaseCommand):
                     f'  Violation recorded: {winner_rec.user} — '
                     f'"{winner_rec.auction.artwork.name}"'
                 )
+                # Auto-apply bidding ban when threshold is reached
+                total_violations = AuctionPaymentViolation.objects.filter(
+                    user=winner_rec.user
+                ).count()
+                if total_violations >= config.max_violations:
+                    ban_until = now + timedelta(days=config.ban_duration_days)
+                    winner_rec.user.bidding_banned_until = ban_until
+                    winner_rec.user.save(update_fields=['bidding_banned_until'])
+                    self.stdout.write(
+                        f'  Bidding banned: {winner_rec.user} until '
+                        f'{ban_until.strftime("%Y-%m-%d %H:%M UTC")}'
+                    )
 
             # Relist if configured
             if config.relist_on_expired:

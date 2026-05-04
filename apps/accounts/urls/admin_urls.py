@@ -15,6 +15,7 @@ from apps.accounts.admin_views import (
     AdminAssignRoleView,
     AdminRemoveRoleView,
     AdminVerifyUserView,
+    AdminUserDirectPermissionsView,
     # Content
     AdminArtworkListView,
     AdminArtworkDetailView,
@@ -35,7 +36,8 @@ admin_urlpatterns = [
     path('users/<uuid:uuid>/',                  AdminUserDetailView.as_view(),  name='admin-user-detail'),
     path('users/<uuid:uuid>/assign-role/',      AdminAssignRoleView.as_view(),  name='admin-user-assign-role'),
     path('users/<uuid:uuid>/remove-role/',      AdminRemoveRoleView.as_view(),  name='admin-user-remove-role'),
-    path('users/<uuid:uuid>/verify/',           AdminVerifyUserView.as_view(),  name='admin-user-verify'),
+    path('users/<uuid:uuid>/verify/',           AdminVerifyUserView.as_view(),            name='admin-user-verify'),
+    path('users/<uuid:uuid>/permissions/',      AdminUserDirectPermissionsView.as_view(), name='admin-user-permissions'),
 
     # Content
     path('artworks/',                           AdminArtworkListView.as_view(), name='admin-artworks'),

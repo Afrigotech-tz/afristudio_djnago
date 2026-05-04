@@ -75,6 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         on_delete=models.SET_NULL, related_name='users'
     )
     verified_at = models.DateTimeField(null=True, blank=True)
+    bidding_banned_until = models.DateTimeField(null=True, blank=True, help_text='Bidding suspended until this datetime. Null = no ban.')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -109,10 +110,36 @@ class User(AbstractBaseUser, PermissionsMixin):
     }
 
     def get_all_permissions_list(self):
-        return [
-            p for p in self.get_all_permissions()
-            if p.split('.')[0] in self._APP_LABELS
-        ]
+        """
+        Return effective permissions: role-based (group) permissions PLUS any
+        directly-assigned user_permissions within the allowed app labels.
+
+        Only users who are BOTH is_superuser=True AND is_staff=True are treated
+        as full admins and receive all app permissions.
+        """
+        from django.contrib.auth.models import Permission
+
+        if self.is_superuser and self.is_staff:
+            return sorted(
+                f'{p.content_type.app_label}.{p.codename}'
+                for p in Permission.objects.select_related('content_type').filter(
+                    content_type__app_label__in=self._APP_LABELS
+                )
+            )
+
+        perms: set[str] = set()
+        # Role-based permissions
+        for group in self.groups.prefetch_related('permissions__content_type').all():
+            for perm in group.permissions.all():
+                label = perm.content_type.app_label
+                if label in self._APP_LABELS:
+                    perms.add(f'{label}.{perm.codename}')
+        # Directly-assigned permissions
+        for perm in self.user_permissions.select_related('content_type').all():
+            label = perm.content_type.app_label
+            if label in self._APP_LABELS:
+                perms.add(f'{label}.{perm.codename}')
+        return sorted(perms)
 
 
 # ──────────────────────────────────────────────
