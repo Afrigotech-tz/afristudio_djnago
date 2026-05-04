@@ -461,6 +461,7 @@ class ArtworkImageListCreateView(generics.GenericAPIView):
 
         is_primary_str = request.data.get('is_primary', 'false')
         is_primary = is_primary_str.lower() in ('true', '1') if isinstance(is_primary_str, str) else bool(is_primary_str)
+        description = request.data.get('description', '')
 
         # Auto-set as primary if it's the first image
         if not artwork.images.exists():
@@ -470,6 +471,7 @@ class ArtworkImageListCreateView(generics.GenericAPIView):
         img = ArtworkImage.objects.create(
             artwork=artwork,
             image=image_file,
+            description=description,
             is_primary=is_primary,
             order=order,
         )
@@ -505,8 +507,23 @@ class ArtworkImageDetailView(generics.GenericAPIView):
 
     def patch(self, request, uuid, pk):
         img = self._get_image(uuid, pk)
-        img.is_primary = True
-        img.save()
+        if request.path.endswith('/set-primary/'):
+            img.is_primary = True
+            img.save(update_fields=['is_primary'])
+        else:
+            fields = []
+            if 'description' in request.data:
+                img.description = request.data.get('description', '')
+                fields.append('description')
+            if 'order' in request.data:
+                img.order = request.data.get('order') or 0
+                fields.append('order')
+            if 'is_primary' in request.data:
+                is_primary = request.data.get('is_primary')
+                img.is_primary = is_primary.lower() in ('true', '1') if isinstance(is_primary, str) else bool(is_primary)
+                fields.append('is_primary')
+            if fields:
+                img.save(update_fields=fields)
         return Response(
             ArtworkImageSerializer(img, context={'request': request}).data
         )

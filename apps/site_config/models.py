@@ -93,6 +93,61 @@ class ContactInfo(SingletonModel):
 
 
 # ──────────────────────────────────────────────
+# Language configuration
+# ──────────────────────────────────────────────
+class LanguageConfig(SingletonModel):
+    """Configurable language list for public-facing translation options."""
+
+    ENGLISH = 'EN'
+    FRENCH = 'FR'
+    GERMAN = 'DE'
+    SPANISH = 'ES'
+    ITALIAN = 'IT'
+    CHINESE = 'CN'
+    JAPANESE = 'JP'
+    ARABIC = 'AR'
+    SWAHILI = 'SW'
+
+    LANGUAGE_CHOICES = [
+        (ENGLISH, 'English'),
+        (FRENCH, 'French (Français)'),
+        (GERMAN, 'German (Deutsch)'),
+        (SPANISH, 'Spanish (Español)'),
+        (ITALIAN, 'Italian (Italiano)'),
+        (CHINESE, 'Chinese (Mandarin / 中文)'),
+        (JAPANESE, 'Japanese (日本語)'),
+        (ARABIC, 'Arabic (العربية)'),
+        (SWAHILI, 'Swahili (Kiswahili)'),
+    ]
+
+    enabled_languages = models.JSONField(default=list, blank=True)
+    default_language = models.CharField(max_length=2, choices=LANGUAGE_CHOICES, default=ENGLISH)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'site_language_config'
+        verbose_name = 'Language Configuration'
+        verbose_name_plural = 'Language Configuration'
+
+    def save(self, *args, **kwargs):
+        if not self.enabled_languages:
+            self.enabled_languages = [code for code, _ in self.LANGUAGE_CHOICES]
+        if self.default_language not in self.enabled_languages:
+            self.default_language = self.enabled_languages[0]
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def options(cls):
+        return [
+            {'code': code, 'name': name}
+            for code, name in cls.LANGUAGE_CHOICES
+        ]
+
+    def __str__(self):
+        return 'Language Configuration'
+
+
+# ──────────────────────────────────────────────
 # Contact messages submitted via the public form
 # ──────────────────────────────────────────────
 class ContactMessage(models.Model):

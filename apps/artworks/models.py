@@ -69,6 +69,7 @@ class Artwork(models.Model):
 class ArtworkImage(models.Model):
     artwork    = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name='images')
     image      = models.ImageField(upload_to='artwork_images/')
+    description = models.TextField(blank=True, default='')
     is_primary = models.BooleanField(default=False, db_index=True)
     order      = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

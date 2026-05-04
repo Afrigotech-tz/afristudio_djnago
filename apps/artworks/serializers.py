@@ -45,7 +45,7 @@ class ArtworkImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ArtworkImage
-        fields = ['id', 'image_url', 'is_primary', 'order', 'created_at']
+        fields = ['id', 'image_url', 'description', 'is_primary', 'order', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     @extend_schema_field(OpenApiTypes.URI)

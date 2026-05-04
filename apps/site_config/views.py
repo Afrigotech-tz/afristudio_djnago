@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, ArtistProfile, Exhibition
+from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, LanguageConfig, ArtistProfile, Exhibition
 from .serializers import (
     LandingHeroSerializer,
     LandingHeroUpdateSerializer,
@@ -19,6 +19,8 @@ from .serializers import (
     HeroContentUpdateSerializer,
     ContactInfoSerializer,
     ContactInfoUpdateSerializer,
+    LanguageConfigSerializer,
+    LanguageConfigUpdateSerializer,
     ContactMessageCreateSerializer,
     ContactMessageSerializer,
     ContactMessageStatusSerializer,
@@ -201,6 +203,45 @@ class ContactInfoView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(ContactInfoSerializer(info).data)
+
+
+# ──────────────────────────────────────────────
+# Language Configuration
+# ──────────────────────────────────────────────
+
+class LanguageConfigView(APIView):
+    """
+    GET   /api/site/languages/   → public
+    PATCH /api/site/languages/   → admin
+    """
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdminUser()]
+
+    @extend_schema(
+        tags=['Site Config'],
+        summary='Get language configuration',
+        responses={200: LanguageConfigSerializer},
+    )
+    def get(self, request):
+        config = LanguageConfig.load()
+        return Response(LanguageConfigSerializer(config).data)
+
+    @extend_schema(
+        tags=['Site Config'],
+        summary='Update language configuration',
+        request=LanguageConfigUpdateSerializer,
+        responses={200: LanguageConfigSerializer},
+    )
+    def patch(self, request):
+        config = LanguageConfig.load()
+        serializer = LanguageConfigUpdateSerializer(config, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        config.refresh_from_db()
+        return Response(LanguageConfigSerializer(config).data)
 
 
 # ──────────────────────────────────────────────

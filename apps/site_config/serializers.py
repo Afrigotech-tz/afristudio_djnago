@@ -5,7 +5,7 @@ site_config/serializers.py
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
-from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, ArtistProfile, Exhibition
+from .models import LandingHero, HeroContent, ContactInfo, ContactMessage, LanguageConfig, ArtistProfile, Exhibition
 
 
 
@@ -72,6 +72,51 @@ class ContactInfoUpdateSerializer(serializers.ModelSerializer):
         model = ContactInfo
         fields = ['email', 'phone', 'location']
         extra_kwargs = {f: {'required': False} for f in ['email', 'phone', 'location']}
+
+
+class LanguageConfigSerializer(serializers.ModelSerializer):
+    available_languages = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LanguageConfig
+        fields = ['available_languages', 'enabled_languages', 'default_language', 'updated_at']
+
+    def get_available_languages(self, _obj):
+        return LanguageConfig.options()
+
+
+class LanguageConfigUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LanguageConfig
+        fields = ['enabled_languages', 'default_language']
+        extra_kwargs = {f: {'required': False} for f in ['enabled_languages', 'default_language']}
+
+    def validate_enabled_languages(self, value):
+        valid = {code for code, _ in LanguageConfig.LANGUAGE_CHOICES}
+        clean = []
+        for code in value:
+            normalized = str(code).upper()
+            if normalized not in valid:
+                raise serializers.ValidationError(f'Unsupported language code: {code}')
+            if normalized not in clean:
+                clean.append(normalized)
+        if not clean:
+            raise serializers.ValidationError('At least one language must be enabled.')
+        return clean
+
+    def validate_default_language(self, value):
+        normalized = str(value).upper()
+        valid = {code for code, _ in LanguageConfig.LANGUAGE_CHOICES}
+        if normalized not in valid:
+            raise serializers.ValidationError(f'Unsupported language code: {value}')
+        return normalized
+
+    def validate(self, attrs):
+        enabled = attrs.get('enabled_languages', getattr(self.instance, 'enabled_languages', []))
+        default = attrs.get('default_language', getattr(self.instance, 'default_language', LanguageConfig.ENGLISH))
+        if enabled and default not in enabled:
+            raise serializers.ValidationError({'default_language': 'Default language must be enabled.'})
+        return attrs
 
 
 class ContactMessageCreateSerializer(serializers.ModelSerializer):
